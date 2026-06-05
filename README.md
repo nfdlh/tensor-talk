@@ -9,6 +9,7 @@ The app uses:
 - shadcn/ui
 - TanStack Query
 - ky
+- next-themes
 
 The assistant does three things:
 

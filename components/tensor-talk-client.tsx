@@ -8,11 +8,14 @@ import {
   FileTextIcon,
   LibraryIcon,
   MessageSquareTextIcon,
+  MoonIcon,
   SearchIcon,
   SendIcon,
-  ShieldCheckIcon,
+  SunIcon,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import Image from "next/image";
+import { useTheme } from "next-themes";
+import { FormEvent, useState } from "react";
 
 import {
   Accordion,
@@ -20,12 +23,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -80,6 +81,7 @@ const SOURCE_AREAS = [
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const { resolvedTheme, setTheme } = useTheme();
 
   const latestTurn = turns[0];
   const chatMutation = useMutation({
@@ -97,17 +99,7 @@ export function TensorTalkClient() {
     },
   });
 
-  const statusLabel = useMemo(() => {
-    if (chatMutation.isPending) {
-      return "retrieving";
-    }
-
-    if (latestTurn?.mode === "model-endpoint") {
-      return "model endpoint";
-    }
-
-    return "local RAG";
-  }, [chatMutation.isPending, latestTurn?.mode]);
+  const isDark = resolvedTheme === "dark";
 
   function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,24 +121,50 @@ export function TensorTalkClient() {
       <div className="mx-auto grid min-h-dvh max-w-[1440px] grid-cols-1 gap-4 p-4 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
         <Card className="lg:min-h-[calc(100dvh-2rem)]">
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <Avatar size="lg" className="rounded-lg">
-                <AvatarImage src="/TensorCat.png" alt="" />
-                <AvatarFallback>TT</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <CardTitle>TensorTalk</CardTitle>
-                <CardDescription>UM FSKTM handbook</CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white">
+                  <Image
+                    src="/tensor-talk-mark.png"
+                    alt=""
+                    width={48}
+                    height={48}
+                    priority
+                    className="size-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <CardTitle>TensorTalk</CardTitle>
+                  <CardDescription>UM FSKTM handbook</CardDescription>
+                </div>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Toggle color theme"
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+              >
+                <SunIcon className="hidden dark:block" />
+                <MoonIcon className="dark:hidden" />
+              </Button>
+            </div>
+            <div className="mt-3 w-fit rounded-lg border bg-white px-3 py-2">
+              <Image
+                src="/um-logo.png"
+                alt="Universiti Malaya"
+                width={165}
+                height={58}
+                className="h-auto w-[165px]"
+              />
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">
+              <Badge variant="success">
                 <CheckCircle2Icon data-icon="inline-start" />
                 Knowledge base ready
               </Badge>
-              <Badge variant="outline">{statusLabel}</Badge>
             </div>
 
             <Separator />
@@ -197,15 +215,6 @@ export function TensorTalkClient() {
           <Card>
             <CardHeader>
               <CardTitle>Ask the handbook</CardTitle>
-              <CardDescription>
-                Search first, answer second, show the source every time.
-              </CardDescription>
-              <CardAction>
-                <Badge variant="outline">
-                  <ShieldCheckIcon data-icon="inline-start" />
-                  grounded
-                </Badge>
-              </CardAction>
             </CardHeader>
             <CardContent>
               <form onSubmit={submitQuestion}>
@@ -293,11 +302,6 @@ export function TensorTalkClient() {
                       <Card size="sm" className="max-w-[92%]">
                         <CardHeader>
                           <CardTitle>Answer</CardTitle>
-                          <CardAction>
-                            <Badge variant="secondary">
-                              {formatMode(turn.mode)}
-                            </Badge>
-                          </CardAction>
                         </CardHeader>
                         <CardContent>
                           <p className="text-sm leading-6">{turn.answer}</p>
@@ -426,22 +430,6 @@ function EvidencePanel({
       </Accordion>
     </ScrollArea>
   );
-}
-
-function formatMode(mode: string) {
-  if (mode === "model-endpoint") {
-    return "model endpoint";
-  }
-
-  if (mode === "local-rag-fallback") {
-    return "local RAG";
-  }
-
-  if (mode.startsWith("model-error")) {
-    return "model unavailable";
-  }
-
-  return mode;
 }
 
 function getErrorMessage(error: Error | null) {
