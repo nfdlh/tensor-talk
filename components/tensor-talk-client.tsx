@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 import {
   Accordion,
@@ -81,6 +81,7 @@ const SOURCE_AREAS = [
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
   const latestTurn = turns[0];
@@ -105,7 +106,12 @@ export function TensorTalkClient() {
     event.preventDefault();
 
     const question = message.trim();
-    if (!question || chatMutation.isPending) {
+    if (chatMutation.isPending) {
+      return;
+    }
+
+    if (!question) {
+      questionInputRef.current?.focus();
       return;
     }
 
@@ -125,12 +131,12 @@ export function TensorTalkClient() {
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white">
                   <Image
-                    src="/tensor-talk-mark.png"
+                    src="/um-mark.png"
                     alt=""
                     width={48}
                     height={48}
                     priority
-                    className="size-full object-cover"
+                    className="size-10 object-contain"
                   />
                 </div>
                 <div className="min-w-0">
@@ -148,15 +154,6 @@ export function TensorTalkClient() {
                 <SunIcon className="hidden dark:block" />
                 <MoonIcon className="dark:hidden" />
               </Button>
-            </div>
-            <div className="mt-3 w-fit rounded-lg border bg-white px-3 py-2">
-              <Image
-                src="/um-logo.png"
-                alt="Universiti Malaya"
-                width={165}
-                height={58}
-                className="h-auto w-[165px]"
-              />
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
@@ -224,6 +221,7 @@ export function TensorTalkClient() {
                     <InputGroup className="min-h-32 items-stretch">
                       <InputGroupTextarea
                         id="question"
+                        ref={questionInputRef}
                         value={message}
                         onChange={(event) => setMessage(event.target.value)}
                         placeholder="Ask about programme requirements, academic rules, facilities, thesis submission, or industrial training."
@@ -240,7 +238,7 @@ export function TensorTalkClient() {
                             type="submit"
                             variant="default"
                             size="sm"
-                            disabled={!message.trim() || chatMutation.isPending}
+                            disabled={chatMutation.isPending}
                           >
                             {chatMutation.isPending ? (
                               <Spinner data-icon="inline-start" />
