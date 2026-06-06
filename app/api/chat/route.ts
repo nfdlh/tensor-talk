@@ -1,12 +1,12 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 
-import { buildFallbackAnswer, retrieveContext } from "@/lib/rag";
+import { retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
 
-const DEFAULT_OPENROUTER_MODEL = "google/gemini-3.1-flash-lite";
-const MODEL_TIMEOUT_MS = 12_000;
+const DEFAULT_TENSORTALK_MODEL = "nfdlh/tensortalk";
+const MODEL_TIMEOUT_MS = 60_000;
 
 export async function POST(request: Request) {
   const message = await parseMessage(request);
@@ -18,23 +18,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const evidence = retrieveContext(message, 4);
-  if (evidence.length === 0) {
+  try {
+    const evidence = retrieveContext(message, 4);
+    const prompt = buildPrompt(message, evidence);
+    const modelAnswer = await callFineTunedModel(prompt);
+
     return Response.json({
-      answer: buildFallbackAnswer(evidence, message),
+      answer: modelAnswer.answer,
       evidence,
-      mode: "local-rag-fallback",
+      mode: modelAnswer.mode,
     });
+  } catch (error) {
+    return Response.json(
+      {
+        error: getPublicModelError(error),
+      },
+      { status: 502 },
+    );
   }
-
-  const prompt = buildPrompt(message, evidence);
-  const modelAnswer = await callModel(prompt);
-
-  return Response.json({
-    answer: modelAnswer.answer ?? buildFallbackAnswer(evidence, message),
-    evidence,
-    mode: modelAnswer.mode,
-  });
 }
 
 function buildPrompt(
@@ -55,49 +56,58 @@ function buildPrompt(
     })
     .join("\n\n");
 
-  return [
+  const promptParts = [
     "You are TensorTalk, a UM FSKTM student handbook assistant.",
-    "Answer only using the handbook evidence below.",
-    "If the evidence is not enough, say you do not have enough handbook evidence.",
-    "Keep the answer concise and cite the relevant section or pages when possible.",
+    "Answer the student question using your fine-tuned handbook knowledge.",
+    "Use the retrieved handbook evidence when it is relevant.",
+    "If the evidence is not enough, rely on the fine-tuned TensorTalk model, but avoid inventing exact handbook rules, numbers, or page references.",
+    "Keep the answer concise and cite the relevant section or pages when the retrieved evidence provides them.",
     "",
-    context,
+    evidence.length > 0
+      ? context
+      : "No matching handbook evidence was retrieved for this question.",
     "",
     `Question: ${message}`,
-  ].join("\n");
+  ];
+
+  return promptParts.join("\n");
 }
 
-async function callModel(prompt: string) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const modelName = process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL;
+async function callFineTunedModel(prompt: string) {
+  const baseURL = process.env.TENSORTALK_API_BASE_URL;
+  const apiKey =
+    process.env.TENSORTALK_API_KEY ??
+    process.env.HUGGINGFACE_API_KEY ??
+    process.env.HF_TOKEN;
+  const modelName = process.env.TENSORTALK_MODEL ?? DEFAULT_TENSORTALK_MODEL;
 
-  if (!apiKey) {
-    return { answer: null, mode: "local-rag-fallback" };
+  if (!baseURL) {
+    throw new Error("Missing TENSORTALK_API_BASE_URL.");
   }
 
-  try {
-    const openrouter = createOpenRouter({ apiKey });
-    const { text } = await generateText({
-      model: openrouter.chat(modelName),
-      prompt,
-      maxOutputTokens: 512,
-      temperature: 0.2,
-      timeout: MODEL_TIMEOUT_MS,
-      maxRetries: 1,
-    });
-    const answer = normalizeModelText(text);
+  const tensorTalk = createOpenAICompatible({
+    name: "tensortalk",
+    baseURL,
+    apiKey,
+  });
+  const { text } = await generateText({
+    model: tensorTalk(modelName),
+    prompt,
+    maxOutputTokens: 512,
+    temperature: 0.2,
+    timeout: MODEL_TIMEOUT_MS,
+    maxRetries: 1,
+  });
+  const answer = normalizeModelText(text);
 
-    if (!answer) {
-      return { answer: null, mode: "local-rag-fallback" };
-    }
-
-    return {
-      answer,
-      mode: `openrouter:${modelName}`,
-    };
-  } catch {
-    return { answer: null, mode: "model-error" };
+  if (!answer) {
+    throw new Error("Fine-tuned model returned an empty answer.");
   }
+
+  return {
+    answer,
+    mode: `tensortalk-endpoint:${modelName}`,
+  };
 }
 
 async function parseMessage(request: Request) {
@@ -122,7 +132,19 @@ async function parseMessage(request: Request) {
 }
 
 function normalizeModelText(text: string | null | undefined) {
-  const trimmed = text?.trim();
+  const withoutThinking = text?.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  const trimmed = withoutThinking?.trim();
 
   return trimmed ? trimmed : null;
+}
+
+function getPublicModelError(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "Missing TENSORTALK_API_BASE_URL."
+  ) {
+    return "TENSORTALK_API_BASE_URL is required because nfdlh/tensortalk is uploaded to Hugging Face Hub but still needs an inference endpoint.";
+  }
+
+  return "The fine-tuned TensorTalk model could not be reached.";
 }

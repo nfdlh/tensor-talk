@@ -1,7 +1,19 @@
-import ky from "ky";
+import ky, { HTTPError } from "ky";
 
 import type { ChatRequest, ChatResponse } from "@/lib/chat";
 
-export function sendChatMessage(payload: ChatRequest) {
-  return ky.post("/api/chat", { json: payload }).json<ChatResponse>();
+export async function sendChatMessage(payload: ChatRequest) {
+  try {
+    return await ky.post("/api/chat", { json: payload }).json<ChatResponse>();
+  } catch (error) {
+    if (error instanceof HTTPError) {
+      const body = await error.response
+        .json<{ error?: string }>()
+        .catch(() => null);
+
+      throw new Error(body?.error ?? "Chat request failed.");
+    }
+
+    throw error;
+  }
 }

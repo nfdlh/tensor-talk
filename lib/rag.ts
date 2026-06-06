@@ -261,51 +261,6 @@ function toEvidence(row: HandbookRow): HandbookEvidence {
   };
 }
 
-export function buildFallbackAnswer(
-  evidence: HandbookEvidence[],
-  question = "",
-) {
-  const firstAnswer = bestGroundedAnswer(evidence, question);
-
-  if (firstAnswer) {
-    return firstAnswer;
-  }
-
-  const firstText = evidence.find((item) => item.source_text)?.source_text;
-
-  if (firstText) {
-    return firstText.split(/\s+/).slice(0, 90).join(" ");
-  }
-
-  return "I could not find enough handbook evidence for that question.";
-}
-
-function bestGroundedAnswer(evidence: HandbookEvidence[], question: string) {
-  const answers = evidence
-    .flatMap((item) => item.grounded_answer_bank ?? [])
-    .filter(Boolean);
-
-  if (answers.length === 0) {
-    return undefined;
-  }
-
-  const queryTerms = meaningfulTerms(question);
-  const subject = directQuestionSubject(question);
-
-  return answers
-    .map((answer, index) => {
-      const score = answerScore(answer, queryTerms, subject);
-
-      return {
-        answer,
-        score,
-        rankedScore: score - index * 0.001,
-      };
-    })
-    .filter((answer) => answer.score >= minimumAnswerScore(queryTerms, subject))
-    .sort((left, right) => right.rankedScore - left.rankedScore)[0]?.answer;
-}
-
 function answerScore(
   answer: string,
   queryTerms: string[],
@@ -358,18 +313,6 @@ function normalizeQuestionSubject(subject?: string) {
 
 function normalizeRoleSubject(subject: string) {
   return subject.replace(/^the\s+/, "").replace(/\s+of\s+.+$/, "").trim();
-}
-
-function minimumAnswerScore(queryTerms: string[], subject: string | null) {
-  if (queryTerms.length === 0) {
-    return 0;
-  }
-
-  if (subject) {
-    return Math.max(2, Math.ceil(queryTerms.length * 0.6));
-  }
-
-  return Math.ceil(queryTerms.length * 0.6);
 }
 
 function normalizeText(text: string) {

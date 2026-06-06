@@ -265,7 +265,7 @@ export function TensorTalkClient() {
             </CardHeader>
             <CardContent className="min-h-0">
               <ScrollArea className="h-[calc(100dvh-25rem)] min-h-80">
-                <div className="flex flex-col gap-3 pr-3">
+                <div className="flex min-w-0 flex-col gap-4 py-1 pr-5">
                   {chatMutation.isPending ? <PendingTurn /> : null}
                   {turns.length === 0 && !chatMutation.isPending ? (
                     <Empty className="min-h-72 border">
@@ -293,16 +293,21 @@ export function TensorTalkClient() {
                   ) : null}
 
                   {turns.map((turn) => (
-                    <article key={turn.id} className="flex flex-col gap-3">
-                      <div className="ml-auto max-w-[82%] rounded-lg border bg-secondary px-3 py-2 text-sm">
+                    <article
+                      key={turn.id}
+                      className="flex min-w-0 flex-col gap-3"
+                    >
+                      <div className="ml-auto box-border max-w-[78%] rounded-lg border bg-secondary px-3 py-2 text-sm [overflow-wrap:anywhere]">
                         {turn.question}
                       </div>
-                      <Card size="sm" className="max-w-[92%]">
+                      <Card size="sm" className="box-border w-full max-w-[88%]">
                         <CardHeader>
                           <CardTitle>Answer</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-sm leading-6">{turn.answer}</p>
+                          <p className="text-sm leading-6 [overflow-wrap:anywhere]">
+                            {turn.answer}
+                          </p>
                         </CardContent>
                       </Card>
                     </article>
