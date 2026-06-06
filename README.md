@@ -2,7 +2,7 @@
 
 Next.js 16 web app for the UM FSKTM handbook assistant.
 
-![TensorTalk architecture](public/tensortalk-architecture.svg)
+![TensorTalk architecture](public/tensortalk-architecture.png)
 
 Model repo: [nfdlh/tensortalk-v2](https://huggingface.co/nfdlh/tensortalk-v2)
 
