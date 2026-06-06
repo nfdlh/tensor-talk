@@ -19,9 +19,13 @@ Current production variables:
 TENSORTALK_MODEL
 TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
+OPENROUTER_API_KEY
+OPENROUTER_MODEL
+OPENROUTER_EMBEDDING_MODEL
 ```
 
-The old OpenRouter variables were removed from Vercel because the app no longer reads them.
+Semantic vector mode reads the OpenRouter variables. Lexical mode reads the
+TensorTalk/RunPod variables.
 
 Check Vercel env vars:
 
@@ -35,9 +39,13 @@ Set or update production variables:
 vercel env add TENSORTALK_MODEL production --force
 vercel env add TENSORTALK_API_BASE_URL production --force
 vercel env add TENSORTALK_API_KEY production --force
+vercel env add OPENROUTER_API_KEY production --force
+vercel env add OPENROUTER_MODEL production --force
+vercel env add OPENROUTER_EMBEDDING_MODEL production --force
 ```
 
 Use the RunPod API key for `TENSORTALK_API_KEY`.
+Use the OpenRouter key for `OPENROUTER_API_KEY`.
 
 ## Deploy
 
@@ -76,9 +84,14 @@ NODE
 Expected:
 
 ```text
-mode: tensortalk-endpoint:nfdlh/tensortalk-v2
+mode: openrouter:google/gemini-3.1-flash-lite
+retrievalMode: semantic
 answer: present
 evidence: present
 ```
 
-If the response says `TENSORTALK_API_BASE_URL is required`, the Vercel production env is missing or the deployment was built before the env was added.
+To test the lexical TensorTalk endpoint path, add `"retrievalMode":"lexical"` to
+the request body. If the semantic response says `OPENROUTER_API_KEY is required`
+or the lexical response says `TENSORTALK_API_BASE_URL is required`, the matching
+Vercel production env is missing or the deployment was built before the env was
+added.

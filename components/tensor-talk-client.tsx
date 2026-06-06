@@ -53,11 +53,19 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { sendChatMessage } from "@/lib/chat-client";
-import type { ChatResponse, Evidence } from "@/lib/chat";
+import type { ChatResponse, Evidence, RetrievalMode } from "@/lib/chat";
 
 type ChatTurn = ChatResponse & {
   id: number;
@@ -68,6 +76,7 @@ type ChatTurn = ChatResponse & {
 type ChatMutationVariables = {
   message: string;
   turnId: number;
+  retrievalMode: RetrievalMode;
 };
 
 const QUICK_PROMPTS = [
@@ -86,6 +95,8 @@ const SOURCE_AREAS = [
 
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
+  const [retrievalMode, setRetrievalMode] =
+    useState<RetrievalMode>("semantic");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [openEvidenceIds, setOpenEvidenceIds] = useState<string[]>([]);
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
@@ -94,8 +105,12 @@ export function TensorTalkClient() {
 
   const latestTurn = turns[0];
   const chatMutation = useMutation({
-    mutationFn: ({ message, turnId }: ChatMutationVariables) => {
-      return sendChatMessage({ message }, (partial) => {
+    mutationFn: ({
+      message,
+      retrievalMode,
+      turnId,
+    }: ChatMutationVariables) => {
+      return sendChatMessage({ message, retrievalMode }, (partial) => {
         if (partial.evidence) {
           setOpenEvidenceIds((current) =>
             current.length > 0 || !partial.evidence?.[0]?.kb_id
@@ -158,12 +173,13 @@ export function TensorTalkClient() {
         answer: "",
         evidence: [],
         mode: "streaming",
+        retrievalMode,
         streaming: true,
       },
       ...current,
     ]);
     setMessage("");
-    chatMutation.mutate({ message: question, turnId });
+    chatMutation.mutate({ message: question, retrievalMode, turnId });
   }
 
   function selectPrompt(prompt: string) {
@@ -209,6 +225,11 @@ export function TensorTalkClient() {
               <Badge variant="success">
                 <CheckCircle2Icon data-icon="inline-start" />
                 Knowledge base ready
+              </Badge>
+              <Badge variant="secondary">
+                {retrievalMode === "semantic"
+                  ? "Semantic vectors"
+                  : "Fast lexical"}
               </Badge>
             </div>
 
@@ -277,11 +298,50 @@ export function TensorTalkClient() {
                       />
                       <InputGroupAddon align="block-end" className="border-t">
                         <div className="flex w-full items-center justify-between gap-2">
-                          <FieldDescription>
-                            {chatMutation.isError
-                              ? getErrorMessage(chatMutation.error)
-                              : "Answers are constrained to handbook evidence."}
-                          </FieldDescription>
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <Select
+                              items={[
+                                {
+                                  label: "Semantic vectors",
+                                  value: "semantic",
+                                },
+                                { label: "Fast lexical", value: "lexical" },
+                              ]}
+                              value={retrievalMode}
+                              onValueChange={(value) => {
+                                if (
+                                  value === "semantic" ||
+                                  value === "lexical"
+                                ) {
+                                  setRetrievalMode(value);
+                                }
+                              }}
+                              disabled={chatMutation.isPending}
+                            >
+                              <SelectTrigger
+                                aria-label="Retrieval mode"
+                                size="sm"
+                                className="min-w-36 shrink-0"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="start">
+                                <SelectGroup>
+                                  <SelectItem value="semantic">
+                                    Semantic vectors
+                                  </SelectItem>
+                                  <SelectItem value="lexical">
+                                    Fast lexical
+                                  </SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FieldDescription className="min-w-0 flex-1 text-xs">
+                              {chatMutation.isError
+                                ? getErrorMessage(chatMutation.error)
+                                : "Answers are constrained to handbook evidence."}
+                            </FieldDescription>
+                          </div>
                           <InputGroupButton
                             type="submit"
                             variant="default"
@@ -378,6 +438,14 @@ export function TensorTalkClient() {
                                 )
                               }
                             />
+                          ) : null}
+                          {turn.retrievalMode ? (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                              Retrieval:{" "}
+                              {turn.retrievalMode === "semantic"
+                                ? "Semantic vectors"
+                                : "Fast lexical"}
+                            </p>
                           ) : null}
                           <div
                             ref={

@@ -8,14 +8,18 @@ export type Evidence = {
   source_text?: string;
 };
 
+export type RetrievalMode = "lexical" | "semantic";
+
 export type ChatRequest = {
   message: string;
+  retrievalMode?: RetrievalMode;
 };
 
 export type ChatResponse = {
   answer: string;
   evidence: Evidence[];
   mode: string;
+  retrievalMode?: RetrievalMode;
   thinking?: string;
 };
 
@@ -24,6 +28,7 @@ export type ChatStreamEvent =
       type: "metadata";
       evidence: Evidence[];
       mode: string;
+      retrievalMode?: RetrievalMode;
     }
   | {
       type: "text";

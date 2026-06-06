@@ -18,34 +18,39 @@ flowchart LR
   User["Student browser"]
   UI["TensorTalk chat UI<br/>components/tensor-talk-client.tsx"]
   API["POST /api/chat<br/>app/api/chat/route.ts"]
-  RAG["MiniSearch retriever<br/>lib/rag.ts"]
+  Mode["Retrieval mode<br/>semantic default or lexical"]
+  Semantic["OpenRouter BGE embeddings<br/>SQLite vector store"]
+  Lexical["MiniSearch retriever<br/>lib/rag.ts"]
   KB["UM handbook JSONL<br/>data/UM_RAG_Knowledge_Base.jsonl"]
-  Prompt["Prompt with top 4 evidence chunks"]
-  Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk-v2"]
+  Prompt["Prompt with retrieved evidence chunks"]
+  Model["OpenRouter or RunPod model"]
   Response["Streamed answer + thinking + evidence + mode"]
 
   User --> UI --> API
-  API --> RAG
-  RAG --> KB
-  RAG --> Prompt
+  API --> Mode
+  Mode --> Semantic --> KB
+  Mode --> Lexical --> KB
+  Semantic --> Prompt
+  Lexical --> Prompt
   API --> Prompt --> Model --> API
   API --> Response --> UI --> User
 ```
 
 The request flow is:
 
-1. Search `data/UM_RAG_Knowledge_Base.jsonl` locally with MiniSearch.
-2. Keep the top 4 relevant handbook chunks as evidence.
+1. Use the selected retrieval mode. Semantic vectors are the default; lexical
+   MiniSearch remains available in the chat UI.
+2. Keep the top semantic 3 or lexical 4 relevant handbook chunks as evidence.
 3. Add the retrieved handbook evidence to the prompt.
-4. Call the fine-tuned `nfdlh/tensortalk-v2` model on RunPod through
-   `@ai-sdk/openai-compatible`.
+4. In semantic mode, call OpenRouter chat. In lexical mode, call the fine-tuned
+   `nfdlh/tensortalk-v2` model on RunPod through `@ai-sdk/openai-compatible`.
 5. Stream model text back to the UI, returning `{ answer, evidence, mode }` and
    optional `thinking` when the model emits a `<think>` block. The latest answer
    appears in the conversation, and its evidence appears in the right panel.
 
-There is no OpenRouter path and no local answer fallback. If the RunPod endpoint
-is unavailable, `/api/chat` returns an error instead of generating a fallback
-answer.
+Semantic mode uses OpenRouter `baai/bge-base-en-v1.5` embeddings and the
+SQLite vector index at `data/UM_RAG_Vectors.sqlite`. Lexical mode keeps the
+existing MiniSearch implementation.
 
 For the retrieval details, see `docs/rag.md`.
 
@@ -72,12 +77,7 @@ RunPod template should serve the same model name that Vercel sends in
 
 ```bash
 pnpm install
-pnpm dev
 ```
-
-Open `http://localhost:3000`.
-
-## Connect TensorTalk model
 
 Copy the example environment file:
 
@@ -86,6 +86,25 @@ cp .env.example .env.local
 ```
 
 Then fill `TENSORTALK_API_KEY` in `.env.local`. The file is gitignored.
+
+For semantic mode, also fill:
+
+```text
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=google/gemini-3.1-flash-lite
+OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
+```
+
+Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to build the SQLite
+vector store.
+
+Start the app:
+
+```bash
+pnpm dev
+```
+
+Open `http://localhost:3000`.
 
 ## Infrastructure docs
 

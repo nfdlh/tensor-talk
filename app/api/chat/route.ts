@@ -4,8 +4,15 @@ import { streamText } from "ai";
 import {
   parseModelText,
   type ChatResponse,
+  type ChatRequest,
   type ChatStreamEvent,
+  type RetrievalMode,
 } from "@/lib/chat";
+import {
+  getOpenRouterApiKey,
+  getOpenRouterBaseUrl,
+  getOpenRouterChatModel,
+} from "@/lib/openrouter";
 import { retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
@@ -14,9 +21,9 @@ const DEFAULT_TENSORTALK_MODEL = "nfdlh/tensortalk-v2";
 const MODEL_TIMEOUT_MS = 60_000;
 
 export async function POST(request: Request) {
-  const message = await parseMessage(request);
+  const chatRequest = await parseChatRequest(request);
 
-  if (!message) {
+  if (!chatRequest) {
     return Response.json(
       { error: "Message is required." },
       { status: 400 },
@@ -24,9 +31,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const evidence = retrieveContext(message, 4);
-    const prompt = buildPrompt(message, evidence);
-    const modelStream = await createFineTunedModelStream(prompt, evidence);
+    const { message, retrievalMode } = chatRequest;
+    const evidence = await retrieveContext(
+      message,
+      retrievalMode === "semantic" ? 3 : 4,
+      retrievalMode,
+    );
+    const prompt = buildPrompt(message, evidence, retrievalMode);
+    const modelStream =
+      retrievalMode === "semantic"
+        ? await createOpenRouterModelStream(prompt, evidence, retrievalMode)
+        : await createFineTunedModelStream(prompt, evidence, retrievalMode);
 
     return modelStream;
   } catch (error) {
@@ -41,7 +56,8 @@ export async function POST(request: Request) {
 
 function buildPrompt(
   message: string,
-  evidence: ReturnType<typeof retrieveContext>,
+  evidence: Awaited<ReturnType<typeof retrieveContext>>,
+  retrievalMode: RetrievalMode,
 ) {
   const context = evidence
     .map((item, index) => {
@@ -59,9 +75,13 @@ function buildPrompt(
 
   const promptParts = [
     "You are TensorTalk, a UM FSKTM student handbook assistant.",
-    "Answer the student question using your fine-tuned handbook knowledge.",
+    retrievalMode === "semantic"
+      ? "Answer the student question using the retrieved semantic handbook evidence."
+      : "Answer the student question using your fine-tuned handbook knowledge.",
     "Use the retrieved handbook evidence when it is relevant.",
-    "If the evidence is not enough, rely on the fine-tuned TensorTalk model, but avoid inventing exact handbook rules, numbers, or page references.",
+    retrievalMode === "semantic"
+      ? "If the evidence is not enough, say the handbook evidence is insufficient; do not invent exact handbook rules, numbers, or page references."
+      : "If the evidence is not enough, rely on the fine-tuned TensorTalk model, but avoid inventing exact handbook rules, numbers, or page references.",
     "Keep the answer concise and cite the relevant section or pages when the retrieved evidence provides them.",
     "Do not begin the answer with raw source labels such as Handbook (Section: ..., Pages: ...); the UI displays evidence links separately.",
     "",
@@ -77,7 +97,8 @@ function buildPrompt(
 
 async function createFineTunedModelStream(
   prompt: string,
-  evidence: ReturnType<typeof retrieveContext>,
+  evidence: Awaited<ReturnType<typeof retrieveContext>>,
+  retrievalMode: RetrievalMode,
 ) {
   const baseURL = process.env.TENSORTALK_API_BASE_URL;
   const apiKey =
@@ -104,6 +125,45 @@ async function createFineTunedModelStream(
     maxRetries: 1,
   });
   const mode = `tensortalk-endpoint:${modelName}`;
+  return createStreamResponse(result, evidence, mode, retrievalMode);
+}
+
+async function createOpenRouterModelStream(
+  prompt: string,
+  evidence: Awaited<ReturnType<typeof retrieveContext>>,
+  retrievalMode: RetrievalMode,
+) {
+  const apiKey = getOpenRouterApiKey();
+  const modelName = getOpenRouterChatModel();
+
+  if (!apiKey) {
+    throw new Error("Missing OPENROUTER_API_KEY.");
+  }
+
+  const openRouter = createOpenAICompatible({
+    name: "openrouter",
+    baseURL: getOpenRouterBaseUrl(),
+    apiKey,
+  });
+  const result = streamText({
+    model: openRouter(modelName),
+    prompt,
+    maxOutputTokens: 512,
+    temperature: 0.2,
+    timeout: MODEL_TIMEOUT_MS,
+    maxRetries: 1,
+  });
+  const mode = `openrouter:${modelName}`;
+
+  return createStreamResponse(result, evidence, mode, retrievalMode);
+}
+
+async function createStreamResponse(
+  result: ReturnType<typeof streamText>,
+  evidence: Awaited<ReturnType<typeof retrieveContext>>,
+  mode: string,
+  retrievalMode: RetrievalMode,
+) {
   const encoder = new TextEncoder();
   const iterator = result.textStream[Symbol.asyncIterator]();
   const firstChunk = await iterator.next();
@@ -121,7 +181,7 @@ async function createFineTunedModelStream(
       }
 
       try {
-        write({ type: "metadata", evidence, mode });
+        write({ type: "metadata", evidence, mode, retrievalMode });
         rawText += firstChunk.value;
         write({ type: "text", text: firstChunk.value });
 
@@ -149,6 +209,7 @@ async function createFineTunedModelStream(
           answer: finalAnswer,
           evidence,
           mode,
+          retrievalMode,
           ...(thinking ? { thinking } : {}),
         };
 
@@ -172,9 +233,9 @@ async function createFineTunedModelStream(
   });
 }
 
-async function parseMessage(request: Request) {
+async function parseChatRequest(request: Request) {
   try {
-    const body: unknown = await request.json();
+    const body: unknown = (await request.json()) as ChatRequest;
 
     if (
       !body ||
@@ -185,9 +246,15 @@ async function parseMessage(request: Request) {
       return null;
     }
 
-    const message = body.message.trim();
+    const payload = body as Partial<ChatRequest>;
+    const message = payload.message?.trim() ?? "";
+    const retrievalMode =
+      payload.retrievalMode === "lexical" ||
+      payload.retrievalMode === "semantic"
+        ? payload.retrievalMode
+        : "semantic";
 
-    return message ? message : null;
+    return message ? { message, retrievalMode } : null;
   } catch {
     return null;
   }
@@ -199,6 +266,25 @@ function getPublicModelError(error: unknown) {
     error.message === "Missing TENSORTALK_API_BASE_URL."
   ) {
     return "TENSORTALK_API_BASE_URL is required because nfdlh/tensortalk-v2 is uploaded to Hugging Face Hub but still needs an inference endpoint.";
+  }
+
+  if (
+    error instanceof Error &&
+    error.message === "Missing OPENROUTER_API_KEY."
+  ) {
+    return "OPENROUTER_API_KEY is required for the semantic vector implementation.";
+  }
+
+  if (
+    error instanceof Error &&
+    (error.message.startsWith("Missing data/UM_RAG_Vectors.sqlite") ||
+      error.message.startsWith("Semantic vector index"))
+  ) {
+    return "The semantic vector index is missing or incompatible. Run `pnpm rag:index` after setting OPENROUTER_API_KEY.";
+  }
+
+  if (error instanceof Error && error.message.includes("OpenRouter")) {
+    return "OpenRouter could not complete the semantic chat request.";
   }
 
   return "The fine-tuned TensorTalk model could not be reached.";

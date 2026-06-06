@@ -4,11 +4,22 @@ This document records how TensorTalk connects the web app to the fine-tuned mode
 
 ## Current setup
 
-The app uses three layers:
+The app now supports two chat implementations:
+
+1. Semantic vectors, the default chat UI mode.
+2. The previous lexical TensorTalk endpoint path.
+
+The lexical path uses three layers:
 
 1. Hugging Face Hub stores the model files.
 2. RunPod Serverless runs the model with vLLM.
 3. Vercel hosts the Next.js frontend/API and calls RunPod through the Vercel AI SDK.
+
+The semantic path uses:
+
+1. OpenRouter embeddings with `baai/bge-base-en-v1.5`.
+2. `data/UM_RAG_Vectors.sqlite` for normalized handbook vectors.
+3. OpenRouter chat with `OPENROUTER_MODEL`.
 
 The current production values are:
 
@@ -33,15 +44,24 @@ app/api/chat/route.ts
 
 It retrieves handbook evidence locally, builds a prompt, and calls the model through `@ai-sdk/openai-compatible`.
 
-Required environment variables:
+Environment variables:
 
 ```text
 TENSORTALK_MODEL=nfdlh/tensortalk-v2
 TENSORTALK_API_BASE_URL=https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
 TENSORTALK_API_KEY=<RunPod API key>
+
+OPENROUTER_API_KEY=<OpenRouter API key>
+OPENROUTER_MODEL=google/gemini-3.1-flash-lite
+OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
 ```
 
-The app no longer uses OpenRouter or a local answer fallback. If RunPod is unavailable or `TENSORTALK_API_BASE_URL` is missing, `/api/chat` returns an error instead of generating a fallback answer.
+Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to create the SQLite
+vector store used by semantic mode.
+
+There is no local answer fallback. If the selected hosted provider is
+unavailable, `/api/chat` returns an error instead of generating a local
+evidence-only answer.
 
 ## Verification commands
 
@@ -86,7 +106,8 @@ Expected response shape:
 ```text
 answer: present
 evidence: array with retrieved handbook chunks
-mode: tensortalk-endpoint:nfdlh/tensortalk-v2
+mode: openrouter:<model> or tensortalk-endpoint:nfdlh/tensortalk-v2
+retrievalMode: semantic or lexical
 ```
 
 The answer should not include raw `<think>` tags. The API route separates

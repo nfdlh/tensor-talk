@@ -47,7 +47,11 @@ export async function sendChatMessage(
       const event = JSON.parse(line) as ChatStreamEvent;
 
       if (event.type === "metadata") {
-        onUpdate?.({ evidence: event.evidence, mode: event.mode });
+        onUpdate?.({
+          evidence: event.evidence,
+          mode: event.mode,
+          retrievalMode: event.retrievalMode,
+        });
         continue;
       }
 

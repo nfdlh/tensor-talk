@@ -1,6 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
+
 import MiniSearch from "minisearch";
+
+import type { RetrievalMode } from "@/lib/chat";
+import {
+  createOpenRouterEmbeddings,
+  getOpenRouterEmbeddingModel,
+} from "@/lib/openrouter";
 
 export type HandbookEvidence = {
   kb_id: string;
@@ -18,8 +27,27 @@ type HandbookRow = HandbookEvidence & {
   title?: string;
   retrieval_text?: string;
   retrieval_keywords?: string[];
+  retrieval_tags?: string[];
   group_canonical_questions?: string[];
   chunk_question_variants?: string[];
+};
+
+type VectorRecord = {
+  id: number;
+  row_json: string;
+  embedding: Uint8Array;
+  dimension: number;
+};
+
+type VectorIndex = {
+  records: VectorRecord[];
+  embeddingModel?: string;
+  dimension: number;
+};
+
+type SemanticHit = {
+  row: HandbookRow;
+  denseScore: number;
 };
 
 const STOP_WORDS = new Set([
@@ -62,9 +90,17 @@ const ACRONYM_EXPANSIONS: Record<string, string[]> = {
 };
 
 const MIN_FUZZY_SCORE = 20;
+const TOP_K_RERANK_POOL = 12;
+const DENSE_SCORE_WEIGHT = 0.82;
+const SCOPE_BONUS_WEIGHT = 0.06;
+const SECTION_BONUS_WEIGHT = 0.04;
+const SUBSECTION_BONUS_WEIGHT = 0.03;
+const SOURCE_DOC_BONUS_WEIGHT = 0.02;
+const KEYWORD_BONUS_WEIGHT = 0.03;
 
 let rowsCache: HandbookRow[] | null = null;
 let searchCache: MiniSearch<HandbookRow> | null = null;
+let vectorCache: VectorIndex | null = null;
 
 function loadKnowledgeBase() {
   if (rowsCache && searchCache) {
@@ -124,7 +160,19 @@ function loadKnowledgeBase() {
   return { rows, search };
 }
 
-export function retrieveContext(question: string, topK = 4): HandbookEvidence[] {
+export async function retrieveContext(
+  question: string,
+  topK = 4,
+  mode: RetrievalMode = "lexical",
+): Promise<HandbookEvidence[]> {
+  if (mode === "semantic") {
+    return retrieveSemanticContext(question, topK);
+  }
+
+  return retrieveLexicalContext(question, topK);
+}
+
+function retrieveLexicalContext(question: string, topK = 4): HandbookEvidence[] {
   const { rows, search } = loadKnowledgeBase();
   const query = question.trim();
 
@@ -148,13 +196,148 @@ export function retrieveContext(question: string, topK = 4): HandbookEvidence[] 
     )
     .map((match) => ({
       ...match,
-      score: contextScore(match.row, query, queryTerms, subject, match.searchScore),
+      score: contextScore(
+        match.row,
+        query,
+        queryTerms,
+        subject,
+        match.searchScore,
+      ),
     }))
     .sort((left, right) => right.score - left.score)
     .map((match) => match.row)
     .slice(0, topK);
 
   return matches.map(toEvidence);
+}
+
+async function retrieveSemanticContext(question: string, topK = 4) {
+  const query = question.trim();
+
+  if (!query) {
+    return [];
+  }
+
+  const index = loadVectorIndex();
+  const [queryVector] = await createOpenRouterEmbeddings(query);
+  validateVectorIndex(index, queryVector.length);
+  const rerankPool = Math.max(topK, TOP_K_RERANK_POOL);
+  const queryMeta = inferExpectedMetadata(query);
+  const denseHits = index.records
+    .map((record) => {
+      const embedding = bufferToVector(record.embedding, record.dimension);
+
+      return {
+        row: JSON.parse(record.row_json) as HandbookRow,
+        denseScore: dotProduct(queryVector, embedding),
+      };
+    })
+    .sort((left, right) => right.denseScore - left.denseScore)
+    .slice(0, rerankPool);
+
+  return denseHits
+    .map((hit) => ({
+      hit,
+      score: semanticScore(hit, question, queryMeta),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .map(({ hit }) => hit.row)
+    .slice(0, topK)
+    .map(toEvidence);
+}
+
+function loadVectorIndex() {
+  if (vectorCache) {
+    return vectorCache;
+  }
+
+  const filePath = path.join(process.cwd(), "data", "UM_RAG_Vectors.sqlite");
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(
+      "Missing data/UM_RAG_Vectors.sqlite. Run `pnpm rag:index` first.",
+    );
+  }
+
+  const dbUrl = pathToFileURL(filePath);
+  dbUrl.searchParams.set("immutable", "1");
+  const db = new DatabaseSync(dbUrl.href, { readOnly: true });
+  const records = db
+    .prepare(
+      "SELECT id, row_json, embedding, dimension FROM rag_vectors ORDER BY id",
+    )
+    .all() as VectorRecord[];
+  const metaRows = db
+    .prepare("SELECT key, value FROM rag_meta")
+    .all() as Array<{ key: string; value: string }>;
+
+  db.close();
+
+  if (records.length === 0) {
+    throw new Error("The SQLite vector index is empty.");
+  }
+
+  const dimension = records[0].dimension;
+
+  if (records.some((record) => record.dimension !== dimension)) {
+    throw new Error("Semantic vector index contains mixed dimensions.");
+  }
+
+  const meta = Object.fromEntries(
+    metaRows.map((row) => [row.key, row.value]),
+  ) as Record<string, string | undefined>;
+
+  vectorCache = {
+    records,
+    embeddingModel: meta.embedding_model,
+    dimension,
+  };
+
+  return vectorCache;
+}
+
+function validateVectorIndex(index: VectorIndex, queryDimension: number) {
+  const runtimeModel = getOpenRouterEmbeddingModel();
+
+  if (index.embeddingModel && index.embeddingModel !== runtimeModel) {
+    throw new Error(
+      `Semantic vector index was built with ${index.embeddingModel}, but OPENROUTER_EMBEDDING_MODEL is ${runtimeModel}. Run \`pnpm rag:index\` again.`,
+    );
+  }
+
+  if (index.dimension !== queryDimension) {
+    throw new Error(
+      `Semantic vector index dimension ${index.dimension} does not match query embedding dimension ${queryDimension}. Run \`pnpm rag:index\` again.`,
+    );
+  }
+}
+
+function semanticScore(
+  hit: SemanticHit,
+  question: string,
+  queryMeta: Partial<HandbookRow>,
+) {
+  const { row, denseScore } = hit;
+  const scopeBonus = metadataBonus(queryMeta.scope_label, row.scope_label);
+  const sectionBonus = metadataBonus(queryMeta.section, row.section);
+  const subsectionBonus = metadataBonus(queryMeta.subsection, row.subsection);
+  const sourceDocBonus = metadataBonus(queryMeta.source_doc, row.source_doc);
+  const keywordBonus = keywordBonusScore(question, row);
+  let finalScore =
+    DENSE_SCORE_WEIGHT * denseScore +
+    SCOPE_BONUS_WEIGHT * scopeBonus +
+    SECTION_BONUS_WEIGHT * sectionBonus +
+    SUBSECTION_BONUS_WEIGHT * subsectionBonus +
+    SOURCE_DOC_BONUS_WEIGHT * sourceDocBonus +
+    KEYWORD_BONUS_WEIGHT * keywordBonus;
+
+  if (queryMeta.scope_label && row.scope_label) {
+    if (queryMeta.scope_label !== row.scope_label) {
+      finalScore *= 0.92;
+    }
+  }
+
+  return finalScore;
 }
 
 function meaningfulTerms(text: string) {
@@ -297,6 +480,86 @@ function answerScore(
   return directScore + termScore;
 }
 
+function inferExpectedMetadata(question: string): Partial<HandbookRow> {
+  const normalized = question.toLowerCase();
+
+  if (
+    /\b(postgraduate|master|phd|doctoral|doctor of philosophy|candidature|thesis|dissertation)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      scope_label: "postgraduate",
+      source_doc: "Complete Handbook",
+    };
+  }
+
+  if (
+    /\b(undergraduate|bachelor|industrial training|academic project|degree programme)\b/.test(
+      normalized,
+    )
+  ) {
+    return {
+      scope_label: "undergraduate",
+      source_doc: "Complete Handbook",
+    };
+  }
+
+  return {
+    scope_label: "general",
+  };
+}
+
+function keywordBonusScore(question: string, row: HandbookRow) {
+  const queryTokens = new Set(normalizeForMatch(question).split(" "));
+  const keywordTokens = new Set(
+    (row.retrieval_keywords ?? [])
+      .flatMap((keyword) => normalizeForMatch(keyword).split(" "))
+      .filter(Boolean),
+  );
+  let overlap = 0;
+
+  for (const token of queryTokens) {
+    if (keywordTokens.has(token)) {
+      overlap += 1;
+    }
+  }
+
+  return Math.min(overlap / 8, 1);
+}
+
+function metadataBonus(expectedValue?: string, rowValue?: string) {
+  if (!expectedValue || !rowValue) {
+    return 0;
+  }
+
+  return normalizeForMatch(expectedValue) === normalizeForMatch(rowValue)
+    ? 1
+    : 0;
+}
+
+function bufferToVector(buffer: Uint8Array, dimension: number) {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const vector = new Array<number>(dimension);
+
+  for (let index = 0; index < dimension; index += 1) {
+    vector[index] = view.getFloat32(index * 4, true);
+  }
+
+  return vector;
+}
+
+function dotProduct(left: number[], right: number[]) {
+  const length = Math.min(left.length, right.length);
+  let score = 0;
+
+  for (let index = 0; index < length; index += 1) {
+    score += left[index] * right[index];
+  }
+
+  return score;
+}
+
 function directQuestionSubject(question: string) {
   const normalized = question.toLowerCase();
   const whatSubject = normalized.match(/^what\s+(?:is|are)\s+(.+?)\??$/)?.[1];
@@ -317,4 +580,12 @@ function normalizeRoleSubject(subject: string) {
 
 function normalizeText(text: string) {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function normalizeForMatch(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
