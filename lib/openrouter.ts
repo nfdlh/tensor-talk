@@ -1,7 +1,6 @@
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const EMBEDDING_TIMEOUT_MS = 30_000;
 
-export const DEFAULT_OPENROUTER_MODEL = "google/gemini-3.1-flash-lite";
 export const DEFAULT_OPENROUTER_EMBEDDING_MODEL = "baai/bge-base-en-v1.5";
 
 type OpenRouterEmbeddingResponse = {
@@ -15,10 +14,6 @@ type OpenRouterEmbeddingResponse = {
 
 export function getOpenRouterApiKey() {
   return process.env.OPENROUTER_API_KEY;
-}
-
-export function getOpenRouterChatModel() {
-  return process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL;
 }
 
 export function getOpenRouterEmbeddingModel() {

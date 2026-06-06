@@ -8,11 +8,6 @@ import {
   type ChatStreamEvent,
   type RetrievalMode,
 } from "@/lib/chat";
-import {
-  getOpenRouterApiKey,
-  getOpenRouterBaseUrl,
-  getOpenRouterChatModel,
-} from "@/lib/openrouter";
 import { retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
@@ -38,10 +33,11 @@ export async function POST(request: Request) {
       retrievalMode,
     );
     const prompt = buildPrompt(message, evidence, retrievalMode);
-    const modelStream =
-      retrievalMode === "semantic"
-        ? await createOpenRouterModelStream(prompt, evidence, retrievalMode)
-        : await createFineTunedModelStream(prompt, evidence, retrievalMode);
+    const modelStream = await createFineTunedModelStream(
+      prompt,
+      evidence,
+      retrievalMode,
+    );
 
     return modelStream;
   } catch (error) {
@@ -125,36 +121,6 @@ async function createFineTunedModelStream(
     maxRetries: 1,
   });
   const mode = `tensortalk-endpoint:${modelName}`;
-  return createStreamResponse(result, evidence, mode, retrievalMode);
-}
-
-async function createOpenRouterModelStream(
-  prompt: string,
-  evidence: Awaited<ReturnType<typeof retrieveContext>>,
-  retrievalMode: RetrievalMode,
-) {
-  const apiKey = getOpenRouterApiKey();
-  const modelName = getOpenRouterChatModel();
-
-  if (!apiKey) {
-    throw new Error("Missing OPENROUTER_API_KEY.");
-  }
-
-  const openRouter = createOpenAICompatible({
-    name: "openrouter",
-    baseURL: getOpenRouterBaseUrl(),
-    apiKey,
-  });
-  const result = streamText({
-    model: openRouter(modelName),
-    prompt,
-    maxOutputTokens: 512,
-    temperature: 0.2,
-    timeout: MODEL_TIMEOUT_MS,
-    maxRetries: 1,
-  });
-  const mode = `openrouter:${modelName}`;
-
   return createStreamResponse(result, evidence, mode, retrievalMode);
 }
 

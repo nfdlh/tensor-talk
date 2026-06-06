@@ -20,12 +20,12 @@ TENSORTALK_MODEL
 TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
 OPENROUTER_API_KEY
-OPENROUTER_MODEL
 OPENROUTER_EMBEDDING_MODEL
 ```
 
-Semantic vector mode reads the OpenRouter variables. Lexical mode reads the
-TensorTalk/RunPod variables.
+Semantic vector mode reads OpenRouter for embeddings and TensorTalk/RunPod for
+generation. Lexical mode reads TensorTalk/RunPod for generation and MiniSearch
+for retrieval.
 
 Check Vercel env vars:
 
@@ -40,7 +40,6 @@ vercel env add TENSORTALK_MODEL production --force
 vercel env add TENSORTALK_API_BASE_URL production --force
 vercel env add TENSORTALK_API_KEY production --force
 vercel env add OPENROUTER_API_KEY production --force
-vercel env add OPENROUTER_MODEL production --force
 vercel env add OPENROUTER_EMBEDDING_MODEL production --force
 ```
 
@@ -84,7 +83,7 @@ NODE
 Expected:
 
 ```text
-mode: openrouter:google/gemini-3.1-flash-lite
+mode: tensortalk-endpoint:nfdlh/tensortalk-v2
 retrievalMode: semantic
 answer: present
 evidence: present

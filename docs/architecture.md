@@ -12,7 +12,7 @@ sequenceDiagram
   participant RAG as RAG selector
   participant Vectors as SQLite vector store
   participant KB as UM_RAG_Knowledge_Base.jsonl
-  participant Model as OpenRouter / RunPod model
+  participant Model as RunPod vLLM TensorTalk model
 
   Student->>UI: Submit handbook question
   UI->>API: fetch("/api/chat", streamed message)
@@ -23,7 +23,7 @@ sequenceDiagram
   API->>Model: Prompt + evidence through @ai-sdk/openai-compatible
   Model-->>API: Generated answer text
   API-->>UI: Streamed chunks, then { answer, evidence, mode, thinking? }
-  UI-->>Student: Latest answer plus evidence panel
+  UI-->>Student: Answer plus evidence panel
 ```
 
 ## Source map
@@ -74,7 +74,7 @@ section, subsection, pages, and source text.
 The current model paths are:
 
 ```text
-Semantic mode -> OpenRouter embeddings -> SQLite vectors -> OpenRouter chat
+Semantic mode -> OpenRouter embeddings -> SQLite vectors -> RunPod Serverless -> vLLM -> nfdlh/tensortalk-v2
 Lexical mode -> MiniSearch -> RunPod Serverless -> vLLM -> nfdlh/tensortalk-v2
 ```
 
@@ -85,7 +85,6 @@ TENSORTALK_MODEL
 TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
 OPENROUTER_API_KEY
-OPENROUTER_MODEL
 OPENROUTER_EMBEDDING_MODEL
 ```
 
@@ -93,7 +92,6 @@ OPENROUTER_EMBEDDING_MODEL
 come from `HUGGINGFACE_API_KEY` or `HF_TOKEN`, but the intended production key is
 the RunPod API key.
 
-`OPENROUTER_MODEL` defaults to `google/gemini-3.1-flash-lite`.
 `OPENROUTER_EMBEDDING_MODEL` defaults to `baai/bge-base-en-v1.5`.
 
 The model call uses:
@@ -108,7 +106,6 @@ maxRetries: 1
 The response `mode` is one of:
 
 ```text
-openrouter:<model-name>
 tensortalk-endpoint:<model-name>
 ```
 

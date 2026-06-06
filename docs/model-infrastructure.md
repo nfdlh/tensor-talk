@@ -19,7 +19,8 @@ The semantic path uses:
 
 1. OpenRouter embeddings with `baai/bge-base-en-v1.5`.
 2. `data/UM_RAG_Vectors.sqlite` for normalized handbook vectors.
-3. OpenRouter chat with `OPENROUTER_MODEL`.
+3. RunPod Serverless with vLLM serves `nfdlh/tensortalk-v2` for answer
+   generation.
 
 The current production values are:
 
@@ -52,7 +53,6 @@ TENSORTALK_API_BASE_URL=https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
 TENSORTALK_API_KEY=<RunPod API key>
 
 OPENROUTER_API_KEY=<OpenRouter API key>
-OPENROUTER_MODEL=google/gemini-3.1-flash-lite
 OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
 ```
 
@@ -106,7 +106,7 @@ Expected response shape:
 ```text
 answer: present
 evidence: array with retrieved handbook chunks
-mode: openrouter:<model> or tensortalk-endpoint:nfdlh/tensortalk-v2
+mode: tensortalk-endpoint:nfdlh/tensortalk-v2
 retrievalMode: semantic or lexical
 ```
 

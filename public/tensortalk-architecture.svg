@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
   <title id="title">TensorTalk Dual Retrieval Architecture</title>
-  <desc id="desc">TensorTalk uses a Next.js API with selectable semantic and lexical retrieval. Semantic mode uses OpenRouter BGE embeddings, SQLite vectors, metadata reranking, and OpenRouter chat. Lexical mode keeps MiniSearch and the existing RunPod TensorTalk endpoint.</desc>
+  <desc id="desc">TensorTalk uses a Next.js API with selectable semantic and lexical retrieval. Semantic mode uses OpenRouter BGE embeddings, SQLite vectors, metadata reranking, and the RunPod TensorTalk endpoint. Lexical mode keeps MiniSearch and the same RunPod TensorTalk endpoint.</desc>
   <defs>
     <style>
       .bg { fill: #f7f9fc; }
@@ -67,9 +67,9 @@
   <text class="tiny" x="1135" y="579" text-anchor="middle">scope, section, keywords</text>
 
   <rect class="model" x="1335" y="470" width="210" height="135" rx="16" />
-  <text class="label" x="1440" y="520" text-anchor="middle">OpenRouter</text>
-  <text class="small" x="1440" y="552" text-anchor="middle">chat model</text>
-  <text class="tiny" x="1440" y="579" text-anchor="middle">OPENROUTER_MODEL</text>
+  <text class="label" x="1440" y="520" text-anchor="middle">RunPod</text>
+  <text class="small" x="1440" y="552" text-anchor="middle">vLLM TensorTalk</text>
+  <text class="tiny" x="1440" y="579" text-anchor="middle">nfdlh/tensortalk-v2</text>
 
   <path class="semanticArrow" d="M925 340 C925 405 325 405 325 470" />
   <path class="semanticArrow" d="M480 538 H575" />

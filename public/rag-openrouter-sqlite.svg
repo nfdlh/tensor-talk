@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">TensorTalk Semantic Retrieval Pipeline</title>
-  <desc id="desc">Semantic TensorTalk retrieval uses OpenRouter BGE embeddings, a SQLite vector store, inner-product search, metadata-aware reranking, and OpenRouter chat grounded in handbook evidence.</desc>
+  <desc id="desc">Semantic TensorTalk retrieval uses OpenRouter BGE embeddings, a SQLite vector store, inner-product search, metadata-aware reranking, and the RunPod vLLM TensorTalk model grounded in handbook evidence.</desc>
   <defs>
     <style>
       .bg { fill: #f8fafc; }
@@ -62,9 +62,9 @@
   <text class="tiny" x="800" y="647" text-anchor="middle">same evidence schema as lexical mode</text>
 
   <rect class="model" x="1090" y="540" width="300" height="135" rx="16" />
-  <text class="label" x="1240" y="588" text-anchor="middle">OpenRouter Chat</text>
-  <text class="small" x="1240" y="620" text-anchor="middle">OPENROUTER_MODEL</text>
-  <text class="tiny" x="1240" y="647" text-anchor="middle">answer constrained to retrieved evidence</text>
+  <text class="label" x="1240" y="588" text-anchor="middle">RunPod vLLM</text>
+  <text class="small" x="1240" y="620" text-anchor="middle">nfdlh/tensortalk-v2</text>
+  <text class="tiny" x="1240" y="647" text-anchor="middle">fine-tuned answer grounded by evidence</text>
 
   <path class="greenArrow" d="M1395 330 C1395 465 360 405 360 540" />
   <path class="greenArrow" d="M510 608 H650" />

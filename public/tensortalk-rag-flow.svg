@@ -58,9 +58,9 @@
   <text class="tiny" x="887.5" y="515" text-anchor="middle">pool 12, top 3</text>
 
   <rect class="gold" x="1085" y="410" width="245" height="118" rx="16" />
-  <text class="label" x="1207.5" y="458" text-anchor="middle">OpenRouter Chat</text>
-  <text class="small" x="1207.5" y="490" text-anchor="middle">grounded answer</text>
-  <text class="tiny" x="1207.5" y="515" text-anchor="middle">evidence returned</text>
+  <text class="label" x="1207.5" y="458" text-anchor="middle">RunPod Chat</text>
+  <text class="small" x="1207.5" y="490" text-anchor="middle">TensorTalk v2</text>
+  <text class="tiny" x="1207.5" y="515" text-anchor="middle">fine-tuned answer</text>
 
   <path class="greenArrow" d="M532.5 300 C532.5 355 237.5 355 237.5 410" />
   <path class="greenArrow" d="M360 469 H440" />

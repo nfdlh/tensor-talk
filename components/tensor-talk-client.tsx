@@ -9,6 +9,8 @@ import {
   LibraryIcon,
   MessageSquareTextIcon,
   MoonIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   SearchIcon,
   SendIcon,
   SunIcon,
@@ -66,6 +68,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { sendChatMessage } from "@/lib/chat-client";
 import type { ChatResponse, Evidence, RetrievalMode } from "@/lib/chat";
+import { cn } from "@/lib/utils";
 
 type ChatTurn = ChatResponse & {
   id: number;
@@ -99,11 +102,12 @@ export function TensorTalkClient() {
     useState<RetrievalMode>("semantic");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [openEvidenceIds, setOpenEvidenceIds] = useState<string[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const latestAnswerEndRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
-  const latestTurn = turns[0];
+  const latestTurn = turns.at(-1);
   const chatMutation = useMutation({
     mutationFn: ({
       message,
@@ -167,6 +171,7 @@ export function TensorTalkClient() {
 
     setOpenEvidenceIds([]);
     setTurns((current) => [
+      ...current,
       {
         id: turnId,
         question,
@@ -176,7 +181,6 @@ export function TensorTalkClient() {
         retrievalMode,
         streaming: true,
       },
-      ...current,
     ]);
     setMessage("");
     chatMutation.mutate({ message: question, retrievalMode, turnId });
@@ -188,11 +192,30 @@ export function TensorTalkClient() {
 
   return (
     <main className="min-h-dvh bg-muted/30 text-foreground">
-      <div className="mx-auto grid min-h-dvh max-w-[1440px] grid-cols-1 gap-4 p-4 lg:grid-cols-[260px_minmax(0,1fr)_360px]">
+      <div
+        className={cn(
+          "mx-auto grid min-h-dvh max-w-[1440px] grid-cols-1 gap-4 p-4",
+          sidebarCollapsed
+            ? "lg:grid-cols-[72px_minmax(0,1fr)_360px]"
+            : "lg:grid-cols-[260px_minmax(0,1fr)_360px]",
+        )}
+      >
         <Card className="lg:min-h-[calc(100dvh-2rem)]">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
+          <CardHeader className={cn(sidebarCollapsed && "items-center px-2")}>
+            <div
+              className={cn(
+                "flex gap-3",
+                sidebarCollapsed
+                  ? "flex-col items-center"
+                  : "items-start justify-between",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex min-w-0 items-center gap-3",
+                  sidebarCollapsed && "justify-center",
+                )}
+              >
                 <div className="flex size-12 shrink-0 items-center justify-center">
                   <Image
                     src="/um-mark-transparent.png"
@@ -203,78 +226,149 @@ export function TensorTalkClient() {
                     className="size-10 object-contain"
                   />
                 </div>
-                <div className="min-w-0">
+                <div className={cn("min-w-0", sidebarCollapsed && "hidden")}>
                   <CardTitle>TensorTalk</CardTitle>
                   <CardDescription>UM FSKTM handbook</CardDescription>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Toggle color theme"
-                onClick={() => setTheme(isDark ? "light" : "dark")}
+              <div
+                className={cn(
+                  "flex shrink-0 gap-2",
+                  sidebarCollapsed && "flex-col",
+                )}
               >
-                <SunIcon className="hidden dark:block" />
-                <MoonIcon className="dark:hidden" />
-              </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={
+                    sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                  }
+                  title={
+                    sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                  }
+                  onClick={() => setSidebarCollapsed((current) => !current)}
+                >
+                  {sidebarCollapsed ? (
+                    <PanelLeftOpenIcon />
+                  ) : (
+                    <PanelLeftCloseIcon />
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Toggle color theme"
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                >
+                  <SunIcon className="hidden dark:block" />
+                  <MoonIcon className="dark:hidden" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="success">
-                <CheckCircle2Icon data-icon="inline-start" />
-                Knowledge base ready
+          {sidebarCollapsed ? (
+            <CardContent className="flex flex-col items-center gap-4 px-2">
+              <Badge
+                variant="success"
+                className="size-8 justify-center px-0"
+                title="Knowledge base ready"
+                aria-label="Knowledge base ready"
+              >
+                <CheckCircle2Icon />
               </Badge>
-              <Badge variant="secondary">
-                {retrievalMode === "semantic"
-                  ? "Semantic vectors"
-                  : "Fast lexical"}
-              </Badge>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            <section className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                Sources
-              </p>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-2">
                 {SOURCE_AREAS.map((area) => (
                   <div
                     key={area}
-                    className="flex min-h-8 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground"
+                    title={area}
+                    aria-label={area}
+                    className="flex size-9 items-center justify-center rounded-md text-muted-foreground"
                   >
                     <LibraryIcon className="size-4" />
-                    {area}
                   </div>
                 ))}
               </div>
-            </section>
 
-            <Separator />
+              <Separator />
 
-            <section className="flex flex-col gap-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                Quick prompts
-              </p>
               <div className="flex flex-col gap-2">
                 {QUICK_PROMPTS.map((prompt) => (
                   <Button
                     key={prompt}
                     type="button"
                     variant="outline"
-                    size="sm"
-                    className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                    size="icon"
+                    title={prompt}
+                    aria-label={prompt}
                     onClick={() => selectPrompt(prompt)}
                   >
-                    <MessageSquareTextIcon data-icon="inline-start" />
-                    {prompt}
+                    <MessageSquareTextIcon />
                   </Button>
                 ))}
               </div>
-            </section>
-          </CardContent>
+            </CardContent>
+          ) : (
+            <CardContent className="flex flex-col gap-5">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="success">
+                  <CheckCircle2Icon data-icon="inline-start" />
+                  Knowledge base ready
+                </Badge>
+                <Badge variant="secondary">
+                  {retrievalMode === "semantic"
+                    ? "Semantic vectors"
+                    : "Fast lexical"}
+                </Badge>
+              </div>
+
+              <Separator />
+
+              <section className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Sources
+                </p>
+                <div className="flex flex-col gap-1">
+                  {SOURCE_AREAS.map((area) => (
+                    <div
+                      key={area}
+                      className="flex min-h-8 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground"
+                    >
+                      <LibraryIcon className="size-4" />
+                      {area}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <Separator />
+
+              <section className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Quick prompts
+                </p>
+                <div className="flex flex-col gap-2">
+                  {QUICK_PROMPTS.map((prompt) => (
+                    <Button
+                      key={prompt}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+                      onClick={() => selectPrompt(prompt)}
+                    >
+                      <MessageSquareTextIcon data-icon="inline-start" />
+                      {prompt}
+                    </Button>
+                  ))}
+                </div>
+              </section>
+            </CardContent>
+          )}
         </Card>
 
         <section className="flex min-h-[calc(100dvh-2rem)] flex-col gap-4">
@@ -297,8 +391,8 @@ export function TensorTalkClient() {
                         disabled={chatMutation.isPending}
                       />
                       <InputGroupAddon align="block-end" className="border-t">
-                        <div className="flex w-full items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <div className="flex w-full flex-col gap-2">
+                          <div className="flex w-full items-center justify-between gap-2">
                             <Select
                               items={[
                                 {
@@ -336,25 +430,25 @@ export function TensorTalkClient() {
                                 </SelectGroup>
                               </SelectContent>
                             </Select>
-                            <FieldDescription className="min-w-0 flex-1 text-xs">
-                              {chatMutation.isError
-                                ? getErrorMessage(chatMutation.error)
-                                : "Answers are constrained to handbook evidence."}
-                            </FieldDescription>
+                            <InputGroupButton
+                              type="submit"
+                              variant="default"
+                              size="sm"
+                              disabled={chatMutation.isPending}
+                            >
+                              {chatMutation.isPending ? (
+                                <Spinner data-icon="inline-start" />
+                              ) : (
+                                <SendIcon data-icon="inline-start" />
+                              )}
+                              Ask
+                            </InputGroupButton>
                           </div>
-                          <InputGroupButton
-                            type="submit"
-                            variant="default"
-                            size="sm"
-                            disabled={chatMutation.isPending}
-                          >
-                            {chatMutation.isPending ? (
-                              <Spinner data-icon="inline-start" />
-                            ) : (
-                              <SendIcon data-icon="inline-start" />
-                            )}
-                            Ask
-                          </InputGroupButton>
+                          <FieldDescription className="text-xs">
+                            {chatMutation.isError
+                              ? getErrorMessage(chatMutation.error)
+                              : "Answers are constrained to handbook evidence."}
+                          </FieldDescription>
                         </div>
                       </InputGroupAddon>
                     </InputGroup>
@@ -368,17 +462,12 @@ export function TensorTalkClient() {
             <CardHeader>
               <CardTitle>Conversation</CardTitle>
               <CardDescription>
-                Latest answers stay at the top for quick comparison.
+                New messages appear at the bottom like a chat.
               </CardDescription>
             </CardHeader>
             <CardContent className="min-h-0">
               <ScrollArea className="h-[calc(100dvh-25rem)] min-h-80">
-                <div className="flex min-w-0 flex-col gap-4 py-1 pr-5">
-                  {chatMutation.isPending &&
-                  !latestTurn?.answer &&
-                  !latestTurn?.thinking ? (
-                    <PendingTurn />
-                  ) : null}
+                <div className="flex min-w-0 flex-col gap-4 py-1 pr-6 pl-4">
                   {turns.length === 0 && !chatMutation.isPending ? (
                     <Empty className="min-h-72 border">
                       <EmptyHeader>
@@ -431,11 +520,7 @@ export function TensorTalkClient() {
                             <EvidenceLinks
                               evidence={turn.evidence}
                               onSelectEvidence={(kbId) =>
-                                setOpenEvidenceIds((current) =>
-                                  current.includes(kbId)
-                                    ? current
-                                    : [...current, kbId],
-                                )
+                                setOpenEvidenceIds([kbId])
                               }
                             />
                           ) : null}
@@ -458,6 +543,11 @@ export function TensorTalkClient() {
                       </Card>
                     </article>
                   ))}
+                  {chatMutation.isPending &&
+                  !latestTurn?.answer &&
+                  !latestTurn?.thinking ? (
+                    <PendingTurn />
+                  ) : null}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -618,7 +708,9 @@ function EvidencePanel({
         className="pr-3"
         multiple
         value={openEvidenceIds}
-        onValueChange={onOpenEvidenceChange}
+        onValueChange={(nextOpenEvidenceIds) =>
+          onOpenEvidenceChange(nextOpenEvidenceIds.slice(-1))
+        }
       >
         {evidence.map((item) => (
           <AccordionItem

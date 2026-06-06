@@ -23,7 +23,7 @@ flowchart LR
   Lexical["MiniSearch retriever<br/>lib/rag.ts"]
   KB["UM handbook JSONL<br/>data/UM_RAG_Knowledge_Base.jsonl"]
   Prompt["Prompt with retrieved evidence chunks"]
-  Model["OpenRouter or RunPod model"]
+  Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk-v2"]
   Response["Streamed answer + thinking + evidence + mode"]
 
   User --> UI --> API
@@ -42,15 +42,16 @@ The request flow is:
    MiniSearch remains available in the chat UI.
 2. Keep the top semantic 3 or lexical 4 relevant handbook chunks as evidence.
 3. Add the retrieved handbook evidence to the prompt.
-4. In semantic mode, call OpenRouter chat. In lexical mode, call the fine-tuned
-   `nfdlh/tensortalk-v2` model on RunPod through `@ai-sdk/openai-compatible`.
+4. Call the fine-tuned `nfdlh/tensortalk-v2` model on RunPod through
+   `@ai-sdk/openai-compatible`.
 5. Stream model text back to the UI, returning `{ answer, evidence, mode }` and
    optional `thinking` when the model emits a `<think>` block. The latest answer
    appears in the conversation, and its evidence appears in the right panel.
 
 Semantic mode uses OpenRouter `baai/bge-base-en-v1.5` embeddings and the
 SQLite vector index at `data/UM_RAG_Vectors.sqlite`. Lexical mode keeps the
-existing MiniSearch implementation.
+existing MiniSearch implementation. Both modes use the fine-tuned TensorTalk
+model for answer generation.
 
 For the retrieval details, see `docs/rag.md`.
 
@@ -91,7 +92,6 @@ For semantic mode, also fill:
 
 ```text
 OPENROUTER_API_KEY=
-OPENROUTER_MODEL=google/gemini-3.1-flash-lite
 OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
 ```
 
