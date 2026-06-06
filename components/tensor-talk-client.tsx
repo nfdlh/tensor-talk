@@ -62,6 +62,7 @@ import type { ChatResponse, Evidence } from "@/lib/chat";
 type ChatTurn = ChatResponse & {
   id: number;
   question: string;
+  streaming?: boolean;
 };
 
 type ChatMutationVariables = {
@@ -88,6 +89,7 @@ export function TensorTalkClient() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [openEvidenceIds, setOpenEvidenceIds] = useState<string[]>([]);
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
+  const latestAnswerEndRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
   const latestTurn = turns[0];
@@ -112,9 +114,17 @@ export function TensorTalkClient() {
     onSuccess: (data, variables) => {
       setTurns((current) =>
         current.map((turn) =>
-          turn.id === variables.turnId ? { ...turn, ...data } : turn,
+          turn.id === variables.turnId
+            ? { ...turn, ...data, streaming: false }
+            : turn,
         ),
       );
+      window.requestAnimationFrame(() => {
+        latestAnswerEndRef.current?.scrollIntoView({
+          block: "end",
+          behavior: "smooth",
+        });
+      });
     },
     onError: (_error, variables) => {
       setTurns((current) =>
@@ -148,6 +158,7 @@ export function TensorTalkClient() {
         answer: "",
         evidence: [],
         mode: "streaming",
+        streaming: true,
       },
       ...current,
     ]);
@@ -347,8 +358,15 @@ export function TensorTalkClient() {
                         </CardHeader>
                         <CardContent>
                           {turn.thinking ? (
-                            <ThinkingBlock thinking={turn.thinking} />
+                            <ThinkingBlock
+                              thinking={turn.thinking}
+                              open={Boolean(turn.streaming)}
+                            />
                           ) : null}
+                          <p className="text-sm leading-6 [overflow-wrap:anywhere]">
+                            {formatAnswerForDisplay(turn.answer) ||
+                              "Waiting for streamed response..."}
+                          </p>
                           {turn.id === latestTurn?.id ? (
                             <EvidenceLinks
                               evidence={turn.evidence}
@@ -361,10 +379,13 @@ export function TensorTalkClient() {
                               }
                             />
                           ) : null}
-                          <p className="text-sm leading-6 [overflow-wrap:anywhere]">
-                            {formatAnswerForDisplay(turn.answer) ||
-                              "Waiting for streamed response..."}
-                          </p>
+                          <div
+                            ref={
+                              turn.id === latestTurn?.id
+                                ? latestAnswerEndRef
+                                : undefined
+                            }
+                          />
                         </CardContent>
                       </Card>
                     </article>
@@ -417,10 +438,16 @@ function PendingTurn() {
   );
 }
 
-function ThinkingBlock({ thinking }: { thinking: string }) {
+function ThinkingBlock({
+  thinking,
+  open,
+}: {
+  thinking: string;
+  open: boolean;
+}) {
   return (
     <details
-      open
+      open={open}
       className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm"
     >
       <summary className="flex cursor-pointer items-center gap-2 font-medium text-muted-foreground">
