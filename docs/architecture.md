@@ -38,6 +38,8 @@ sequenceDiagram
 - `data/UM_RAG_Knowledge_Base.jsonl` is the local handbook knowledge base. It
   currently contains 521 JSONL rows.
 
+For the retrieval scoring details, see `docs/rag.md`.
+
 ## Retrieval behavior
 
 The retriever indexes `title`, `retrieval_text`, `source_text`, `section`,

@@ -46,6 +46,8 @@ There is no OpenRouter path and no local answer fallback. If the RunPod endpoint
 is unavailable, `/api/chat` returns an error instead of generating a fallback
 answer.
 
+For the retrieval details, see `docs/rag.md`.
+
 ## Run locally
 
 ```bash
@@ -70,6 +72,7 @@ Then fill `TENSORTALK_API_KEY` in `.env.local`. The file is gitignored.
 See `docs/` for the model hosting and deployment notes:
 
 - `docs/architecture.md`
+- `docs/rag.md`
 - `docs/model-infrastructure.md`
 - `docs/huggingface-model.md`
 - `docs/runpod-endpoint.md`
