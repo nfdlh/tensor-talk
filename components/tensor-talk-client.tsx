@@ -86,6 +86,7 @@ const SOURCE_AREAS = [
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [openEvidenceIds, setOpenEvidenceIds] = useState<string[]>([]);
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -93,6 +94,14 @@ export function TensorTalkClient() {
   const chatMutation = useMutation({
     mutationFn: ({ message, turnId }: ChatMutationVariables) => {
       return sendChatMessage({ message }, (partial) => {
+        if (partial.evidence) {
+          setOpenEvidenceIds((current) =>
+            current.length > 0 || !partial.evidence?.[0]?.kb_id
+              ? current
+              : [partial.evidence[0].kb_id],
+          );
+        }
+
         setTurns((current) =>
           current.map((turn) =>
             turn.id === turnId ? { ...turn, ...partial } : turn,
@@ -131,6 +140,7 @@ export function TensorTalkClient() {
 
     const turnId = Date.now();
 
+    setOpenEvidenceIds([]);
     setTurns((current) => [
       {
         id: turnId,
@@ -336,20 +346,25 @@ export function TensorTalkClient() {
                           <CardTitle>Answer</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-sm leading-6 [overflow-wrap:anywhere]">
-                            {turn.answer || "Waiting for streamed response..."}
-                          </p>
                           {turn.thinking ? (
-                            <details className="mt-4 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                              <summary className="flex cursor-pointer items-center gap-2 font-medium text-muted-foreground">
-                                <BrainCircuitIcon className="size-4" />
-                                Model thinking
-                              </summary>
-                              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 font-sans text-muted-foreground [overflow-wrap:anywhere]">
-                                {turn.thinking}
-                              </pre>
-                            </details>
+                            <ThinkingBlock thinking={turn.thinking} />
                           ) : null}
+                          {turn.id === latestTurn?.id ? (
+                            <EvidenceLinks
+                              evidence={turn.evidence}
+                              onSelectEvidence={(kbId) =>
+                                setOpenEvidenceIds((current) =>
+                                  current.includes(kbId)
+                                    ? current
+                                    : [...current, kbId],
+                                )
+                              }
+                            />
+                          ) : null}
+                          <p className="text-sm leading-6 [overflow-wrap:anywhere]">
+                            {formatAnswerForDisplay(turn.answer) ||
+                              "Waiting for streamed response..."}
+                          </p>
                         </CardContent>
                       </Card>
                     </article>
@@ -370,6 +385,8 @@ export function TensorTalkClient() {
           <CardContent>
             <EvidencePanel
               evidence={latestTurn?.evidence ?? []}
+              openEvidenceIds={openEvidenceIds}
+              onOpenEvidenceChange={setOpenEvidenceIds}
               pending={chatMutation.isPending}
             />
           </CardContent>
@@ -400,11 +417,76 @@ function PendingTurn() {
   );
 }
 
+function ThinkingBlock({ thinking }: { thinking: string }) {
+  return (
+    <details
+      open
+      className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+    >
+      <summary className="flex cursor-pointer items-center gap-2 font-medium text-muted-foreground">
+        <BrainCircuitIcon className="size-4" />
+        Model thinking
+      </summary>
+      <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 font-sans text-muted-foreground [overflow-wrap:anywhere]">
+        {thinking}
+      </pre>
+    </details>
+  );
+}
+
+function EvidenceLinks({
+  evidence,
+  onSelectEvidence,
+}: {
+  evidence: Evidence[];
+  onSelectEvidence: (kbId: string) => void;
+}) {
+  if (evidence.length === 0) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label="Evidence links"
+      className="mb-3 flex flex-wrap items-center gap-2"
+    >
+      <span className="text-xs font-medium text-muted-foreground">
+        Evidence
+      </span>
+      {evidence.map((item, index) => {
+        const label = getEvidenceLabel(item, index);
+        const title = getEvidenceTitle(item, label);
+
+        return (
+          <a
+            key={item.kb_id}
+            href={`#${getEvidenceId(item.kb_id)}`}
+            title={title}
+            aria-label={title}
+            onClick={() => {
+              onSelectEvidence(item.kb_id);
+              scrollToEvidence(item.kb_id);
+            }}
+            className="inline-flex h-6 max-w-full items-center gap-1 rounded-full border px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <FileTextIcon className="size-3 shrink-0" />
+            <span className="truncate">{label}</span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
 function EvidencePanel({
   evidence,
+  openEvidenceIds,
+  onOpenEvidenceChange,
   pending,
 }: {
   evidence: Evidence[];
+  openEvidenceIds: string[];
+  onOpenEvidenceChange: (openEvidenceIds: string[]) => void;
   pending: boolean;
 }) {
   if (pending) {
@@ -439,10 +521,17 @@ function EvidencePanel({
       <Accordion
         key={evidence[0]?.kb_id}
         className="pr-3"
-        defaultValue={evidence[0]?.kb_id ? [evidence[0].kb_id] : undefined}
+        multiple
+        value={openEvidenceIds}
+        onValueChange={onOpenEvidenceChange}
       >
         {evidence.map((item) => (
-          <AccordionItem key={item.kb_id} value={item.kb_id}>
+          <AccordionItem
+            key={item.kb_id}
+            id={getEvidenceId(item.kb_id)}
+            value={item.kb_id}
+            className="scroll-mt-4 rounded-lg target:bg-muted/40"
+          >
             <AccordionTrigger>
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="truncate">
@@ -475,6 +564,46 @@ function EvidencePanel({
       </Accordion>
     </ScrollArea>
   );
+}
+
+function formatAnswerForDisplay(answer: string) {
+  const withoutLeadingSource = answer
+    .trim()
+    .replace(/^(?:Handbook|Source|Evidence)\s*\([^)]*\)\s*[:,]?\s*/i, "")
+    .trim();
+
+  if (!withoutLeadingSource) {
+    return answer.trim();
+  }
+
+  return withoutLeadingSource.replace(
+    /^are:\s*/i,
+    "The relevant handbook points are: ",
+  );
+}
+
+function getEvidenceId(kbId: string) {
+  return `evidence-${kbId}`;
+}
+
+function getEvidenceLabel(item: Evidence, index: number) {
+  return (
+    item.section ?? item.subsection ?? item.source_doc ?? `Source ${index + 1}`
+  );
+}
+
+function getEvidenceTitle(item: Evidence, label: string) {
+  const pageText = item.pages?.length ? `, page ${item.pages.join(", ")}` : "";
+
+  return `View ${label}${pageText} in the evidence panel`;
+}
+
+function scrollToEvidence(kbId: string) {
+  window.requestAnimationFrame(() => {
+    document
+      .getElementById(getEvidenceId(kbId))
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
 }
 
 function getErrorMessage(error: Error | null) {

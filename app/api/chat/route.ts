@@ -63,6 +63,7 @@ function buildPrompt(
     "Use the retrieved handbook evidence when it is relevant.",
     "If the evidence is not enough, rely on the fine-tuned TensorTalk model, but avoid inventing exact handbook rules, numbers, or page references.",
     "Keep the answer concise and cite the relevant section or pages when the retrieved evidence provides them.",
+    "Do not begin the answer with raw source labels such as Handbook (Section: ..., Pages: ...); the UI displays evidence links separately.",
     "",
     evidence.length > 0
       ? context
