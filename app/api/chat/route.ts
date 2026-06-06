@@ -1,17 +1,11 @@
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { generateText } from "ai";
+
 import { buildFallbackAnswer, retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
 
-type ModelResponse = {
-  generated_text?: string;
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-    text?: string;
-  }>;
-};
-
+const DEFAULT_OPENROUTER_MODEL = "google/gemini-3.1-flash-lite";
 const MODEL_TIMEOUT_MS = 12_000;
 
 export async function POST(request: Request) {
@@ -74,37 +68,24 @@ function buildPrompt(
 }
 
 async function callModel(prompt: string) {
-  const endpoint = process.env.MODEL_API_URL;
-  const token = process.env.MODEL_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const modelName = process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL;
 
-  if (!endpoint) {
+  if (!apiKey) {
     return { answer: null, mode: "local-rag-fallback" };
   }
 
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      signal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 512,
-          temperature: 0.2,
-          return_full_text: false,
-        },
-      }),
+    const openrouter = createOpenRouter({ apiKey });
+    const { text } = await generateText({
+      model: openrouter.chat(modelName),
+      prompt,
+      maxOutputTokens: 512,
+      temperature: 0.2,
+      timeout: MODEL_TIMEOUT_MS,
+      maxRetries: 1,
     });
-
-    if (!response.ok) {
-      return { answer: null, mode: `model-error-${response.status}` };
-    }
-
-    const data = (await response.json()) as ModelResponse | ModelResponse[];
-    const answer = extractText(data);
+    const answer = normalizeModelText(text);
 
     if (!answer) {
       return { answer: null, mode: "local-rag-fallback" };
@@ -112,7 +93,7 @@ async function callModel(prompt: string) {
 
     return {
       answer,
-      mode: "model-endpoint",
+      mode: `openrouter:${modelName}`,
     };
   } catch {
     return { answer: null, mode: "model-error" };
@@ -138,18 +119,6 @@ async function parseMessage(request: Request) {
   } catch {
     return null;
   }
-}
-
-function extractText(data: ModelResponse | ModelResponse[]) {
-  if (Array.isArray(data)) {
-    return normalizeModelText(data[0]?.generated_text);
-  }
-
-  return normalizeModelText(
-    data.generated_text ??
-      data.choices?.[0]?.message?.content ??
-      data.choices?.[0]?.text,
-  );
 }
 
 function normalizeModelText(text: string | null | undefined) {

@@ -1,0 +1,126 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">RAG Pipeline with SQLite and OpenRouter</title>
+  <desc id="desc">Architecture diagram showing documents chunked and embedded into SQLite, then user questions embedded, searched, assembled into a prompt, sent through OpenRouter to an LLM, and returned as answers with citations.</desc>
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#E7ECEF" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#0F172A" flood-opacity="0.11"/>
+    </filter>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0F766E"/>
+    </marker>
+    <style>
+      .bg { fill: #FAFBFC; }
+      .grid { fill: url(#grid); opacity: 0.8; }
+      text { font-family: Arial, Helvetica, sans-serif; }
+      .title { font-size: 46px; font-weight: 700; fill: #0F172A; }
+      .subtitle { font-size: 22px; font-weight: 500; fill: #475569; }
+      .lane-title { font-size: 23px; font-weight: 700; fill: #0F172A; }
+      .label { font-size: 25px; font-weight: 700; fill: #0F172A; }
+      .small { font-size: 20px; font-weight: 600; fill: #334155; }
+      .tiny { font-size: 17px; font-weight: 700; fill: #475569; }
+      .box { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .box-blue { stroke: #93C5FD; }
+      .box-teal { stroke: #5EEAD4; }
+      .box-amber { stroke: #FBBF24; }
+      .lane { fill: #FFFFFF; stroke: #E2E8F0; stroke-width: 2; rx: 30; opacity: 0.76; }
+      .chip { fill: #F8FAFC; stroke: #CBD5E1; stroke-width: 1.5; rx: 14; }
+      .chip-teal { fill: #ECFDF5; stroke: #99F6E4; }
+      .chip-blue { fill: #EFF6FF; stroke: #BFDBFE; }
+      .chip-amber { fill: #FFFBEB; stroke: #FDE68A; }
+      .arrow-blue { stroke: #2563EB; stroke-width: 5; stroke-linecap: round; marker-end: url(#arrowBlue); }
+      .arrow-teal { stroke: #0F766E; stroke-width: 5; stroke-linecap: round; marker-end: url(#arrowTeal); }
+      .arrow-soft { stroke: #64748B; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 8 12; marker-end: url(#arrowBlue); }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <rect class="grid" width="1600" height="900"/>
+
+  <text class="title" x="800" y="80" text-anchor="middle">RAG Pipeline with SQLite + OpenRouter</text>
+  <text class="subtitle" x="800" y="120" text-anchor="middle">LLM + RAG + embeddings state for a local knowledge assistant</text>
+
+  <rect class="lane" x="70" y="165" width="1460" height="270"/>
+  <text class="lane-title" x="112" y="212">Indexing flow</text>
+  <rect class="chip chip-teal" x="1260" y="188" width="212" height="42"/>
+  <text class="tiny" x="1366" y="215" text-anchor="middle">Persistent Local Store</text>
+
+  <rect class="box box-teal" x="110" y="260" width="210" height="100"/>
+  <text class="label" x="215" y="319" text-anchor="middle">Documents</text>
+
+  <rect class="box box-teal" x="390" y="260" width="210" height="100"/>
+  <text class="label" x="495" y="319" text-anchor="middle">Chunking</text>
+
+  <rect class="box box-blue" x="670" y="260" width="245" height="100"/>
+  <text class="label" x="792.5" y="306" text-anchor="middle">Embedding</text>
+  <text class="label" x="792.5" y="338" text-anchor="middle">Model</text>
+
+  <g transform="translate(1010 236)">
+    <path d="M 0 54 C 0 24.1766 84.169 0 188 0 C 291.831 0 376 24.1766 376 54 V 168 C 376 197.823 291.831 222 188 222 C 84.169 222 0 197.823 0 168 Z" fill="#FFFFFF" stroke="#F59E0B" stroke-width="3" filter="url(#shadow)"/>
+    <ellipse cx="188" cy="54" rx="188" ry="54" fill="#FFFBEB" stroke="#F59E0B" stroke-width="3"/>
+    <text class="label" x="188" y="64" text-anchor="middle">SQLite</text>
+    <rect class="chip chip-amber" x="44" y="94" width="92" height="42"/>
+    <text class="tiny" x="90" y="121" text-anchor="middle">chunks</text>
+    <rect class="chip chip-blue" x="145" y="94" width="92" height="42"/>
+    <text class="tiny" x="191" y="121" text-anchor="middle">vectors</text>
+    <rect class="chip" x="246" y="94" width="100" height="42"/>
+    <text class="tiny" x="296" y="121" text-anchor="middle">metadata</text>
+    <text class="small" x="188" y="174" text-anchor="middle">Persistent Local Store</text>
+  </g>
+
+  <line class="arrow-teal" x1="320" y1="310" x2="382" y2="310"/>
+  <line class="arrow-teal" x1="600" y1="310" x2="662" y2="310"/>
+  <line class="arrow-blue" x1="915" y1="310" x2="1000" y2="310"/>
+
+  <rect class="lane" x="70" y="490" width="1460" height="310"/>
+  <text class="lane-title" x="112" y="537">Chat flow</text>
+  <rect class="chip chip-blue" x="1250" y="514" width="222" height="42"/>
+  <text class="tiny" x="1361" y="541" text-anchor="middle">RAG Pipeline</text>
+
+  <rect class="box box-teal" x="110" y="595" width="190" height="96"/>
+  <text class="label" x="205" y="633" text-anchor="middle">User</text>
+  <text class="label" x="205" y="665" text-anchor="middle">Question</text>
+
+  <rect class="box box-blue" x="350" y="595" width="215" height="96"/>
+  <text class="label" x="457.5" y="633" text-anchor="middle">Query</text>
+  <text class="label" x="457.5" y="665" text-anchor="middle">Embedding</text>
+
+  <rect class="box box-blue" x="615" y="595" width="225" height="96"/>
+  <text class="label" x="727.5" y="633" text-anchor="middle">Similarity</text>
+  <text class="label" x="727.5" y="665" text-anchor="middle">Search</text>
+
+  <rect class="box box-amber" x="890" y="595" width="205" height="96"/>
+  <text class="label" x="992.5" y="633" text-anchor="middle">Top-k</text>
+  <text class="label" x="992.5" y="665" text-anchor="middle">Context</text>
+
+  <rect class="box box-amber" x="1145" y="595" width="215" height="96"/>
+  <text class="label" x="1252.5" y="633" text-anchor="middle">Prompt</text>
+  <text class="label" x="1252.5" y="665" text-anchor="middle">Builder</text>
+
+  <rect class="box box-blue" x="930" y="735" width="185" height="82"/>
+  <text class="label" x="1022.5" y="785" text-anchor="middle">OpenRouter</text>
+
+  <rect class="box box-blue" x="1190" y="735" width="130" height="82"/>
+  <text class="label" x="1255" y="785" text-anchor="middle">LLM</text>
+
+  <rect class="box box-teal" x="1370" y="725" width="130" height="102"/>
+  <text class="small" x="1435" y="762" text-anchor="middle">Answer +</text>
+  <text class="small" x="1435" y="790" text-anchor="middle">Citations</text>
+
+  <line class="arrow-teal" x1="300" y1="643" x2="342" y2="643"/>
+  <line class="arrow-blue" x1="565" y1="643" x2="607" y2="643"/>
+  <line class="arrow-blue" x1="840" y1="643" x2="882" y2="643"/>
+  <line class="arrow-blue" x1="1095" y1="643" x2="1137" y2="643"/>
+  <path class="arrow-soft" d="M 737 595 C 760 502 950 438 1098 420"/>
+  <path class="arrow-blue" d="M 1252 691 C 1252 724 1114 724 1060 748"/>
+  <line class="arrow-blue" x1="1115" y1="776" x2="1182" y2="776"/>
+  <line class="arrow-teal" x1="1320" y1="776" x2="1362" y2="776"/>
+
+  <text class="tiny" x="880" y="494" text-anchor="middle">retrieve matching chunks + metadata from vectors</text>
+  <text class="tiny" x="1165" y="722" text-anchor="middle">context + question</text>
+</svg>
