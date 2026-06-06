@@ -48,17 +48,37 @@ The app no longer uses OpenRouter or a local answer fallback. If RunPod is unava
 Local API check:
 
 ```bash
-curl -sS -X POST http://localhost:3000/api/chat \
+curl -sS -N -X POST http://localhost:3000/api/chat \
   -H 'Content-Type: application/json' \
-  --data '{"message":"What are the faculty objectives?"}' | python -m json.tool
+  --data '{"message":"What are the faculty objectives?"}' \
+  > /tmp/tensortalk-local.ndjson
+
+node - <<'NODE'
+const fs = require("fs");
+const events = fs.readFileSync("/tmp/tensortalk-local.ndjson", "utf8")
+  .trim()
+  .split("\n")
+  .map(JSON.parse);
+console.log(events.find((event) => event.type === "done")?.response);
+NODE
 ```
 
 Production API check:
 
 ```bash
-curl -sS -X POST https://tensor-talk.vercel.app/api/chat \
+curl -sS -N -X POST https://tensor-talk.vercel.app/api/chat \
   -H 'Content-Type: application/json' \
-  --data '{"message":"What are the faculty objectives?"}' | python -m json.tool
+  --data '{"message":"What are the faculty objectives?"}' \
+  > /tmp/tensortalk-production.ndjson
+
+node - <<'NODE'
+const fs = require("fs");
+const events = fs.readFileSync("/tmp/tensortalk-production.ndjson", "utf8")
+  .trim()
+  .split("\n")
+  .map(JSON.parse);
+console.log(events.find((event) => event.type === "done")?.response);
+NODE
 ```
 
 Expected response shape:
@@ -69,4 +89,6 @@ evidence: array with retrieved handbook chunks
 mode: tensortalk-endpoint:nfdlh/tensortalk-v2
 ```
 
-The answer should not include `<think>` blocks. The API route strips those before returning text to the frontend.
+The answer should not include raw `<think>` tags. The API route separates
+thinking text into an optional `thinking` field so the frontend can show it in a
+collapsible block.

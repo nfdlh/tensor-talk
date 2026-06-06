@@ -77,9 +77,19 @@ vercel --prod --yes
 Check production:
 
 ```bash
-curl -sS -X POST https://tensor-talk.vercel.app/api/chat \
+curl -sS -N -X POST https://tensor-talk.vercel.app/api/chat \
   -H 'Content-Type: application/json' \
-  --data '{"message":"What are the faculty objectives?"}' | python -m json.tool
+  --data '{"message":"What are the faculty objectives?"}' \
+  > /tmp/tensortalk-production.ndjson
+
+node - <<'NODE'
+const fs = require("fs");
+const events = fs.readFileSync("/tmp/tensortalk-production.ndjson", "utf8")
+  .trim()
+  .split("\n")
+  .map(JSON.parse);
+console.log(events.find((event) => event.type === "done")?.response);
+NODE
 ```
 
 Expected:
@@ -90,4 +100,5 @@ answer: present
 evidence: present
 ```
 
-Also check that the answer does not contain raw `<think>` blocks.
+Also check that the answer does not contain raw `<think>` tags. If thinking is
+returned, it should appear in the optional `thinking` field.

@@ -64,6 +64,11 @@ type ChatTurn = ChatResponse & {
   question: string;
 };
 
+type ChatMutationVariables = {
+  message: string;
+  turnId: number;
+};
+
 const QUICK_PROMPTS = [
   "What are the faculty objectives?",
   "What is industrial training?",
@@ -86,17 +91,26 @@ export function TensorTalkClient() {
 
   const latestTurn = turns[0];
   const chatMutation = useMutation({
-    mutationFn: sendChatMessage,
+    mutationFn: ({ message, turnId }: ChatMutationVariables) => {
+      return sendChatMessage({ message }, (partial) => {
+        setTurns((current) =>
+          current.map((turn) =>
+            turn.id === turnId ? { ...turn, ...partial } : turn,
+          ),
+        );
+      });
+    },
     onSuccess: (data, variables) => {
-      setTurns((current) => [
-        {
-          ...data,
-          id: Date.now(),
-          question: variables.message,
-        },
-        ...current,
-      ]);
-      setMessage("");
+      setTurns((current) =>
+        current.map((turn) =>
+          turn.id === variables.turnId ? { ...turn, ...data } : turn,
+        ),
+      );
+    },
+    onError: (_error, variables) => {
+      setTurns((current) =>
+        current.filter((turn) => turn.id !== variables.turnId),
+      );
     },
   });
 
@@ -115,7 +129,20 @@ export function TensorTalkClient() {
       return;
     }
 
-    chatMutation.mutate({ message: question });
+    const turnId = Date.now();
+
+    setTurns((current) => [
+      {
+        id: turnId,
+        question,
+        answer: "",
+        evidence: [],
+        mode: "streaming",
+      },
+      ...current,
+    ]);
+    setMessage("");
+    chatMutation.mutate({ message: question, turnId });
   }
 
   function selectPrompt(prompt: string) {
@@ -266,7 +293,11 @@ export function TensorTalkClient() {
             <CardContent className="min-h-0">
               <ScrollArea className="h-[calc(100dvh-25rem)] min-h-80">
                 <div className="flex min-w-0 flex-col gap-4 py-1 pr-5">
-                  {chatMutation.isPending ? <PendingTurn /> : null}
+                  {chatMutation.isPending &&
+                  !latestTurn?.answer &&
+                  !latestTurn?.thinking ? (
+                    <PendingTurn />
+                  ) : null}
                   {turns.length === 0 && !chatMutation.isPending ? (
                     <Empty className="min-h-72 border">
                       <EmptyHeader>
@@ -306,8 +337,19 @@ export function TensorTalkClient() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-sm leading-6 [overflow-wrap:anywhere]">
-                            {turn.answer}
+                            {turn.answer || "Waiting for streamed response..."}
                           </p>
+                          {turn.thinking ? (
+                            <details className="mt-4 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                              <summary className="flex cursor-pointer items-center gap-2 font-medium text-muted-foreground">
+                                <BrainCircuitIcon className="size-4" />
+                                Model thinking
+                              </summary>
+                              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 font-sans text-muted-foreground [overflow-wrap:anywhere]">
+                                {turn.thinking}
+                              </pre>
+                            </details>
+                          ) : null}
                         </CardContent>
                       </Card>
                     </article>

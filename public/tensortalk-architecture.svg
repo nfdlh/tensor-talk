@@ -64,8 +64,4 @@
   <path d="M1374 356V414" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
   <path d="M1224 560C1076 700 648 700 604 452" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
   <path d="M444 390C360 520 280 520 226 434" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
-
-  <rect x="156" y="702" width="1360" height="116" rx="22" fill="#17352f"/>
-  <text x="206" y="754" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800">Fine-tuning now documented in the runtime path</text>
-  <text x="206" y="794" fill="#d7e4df" font-family="Inter, Arial, sans-serif" font-size="22">Qwen3-8B base, Stage 3 PPO, rule-based preference reward, 900 training rows, 100 validation rows, served as nfdlh/tensortalk-v2.</text>
 </svg>

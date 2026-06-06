@@ -58,9 +58,19 @@ vercel inspect tensor-talk.vercel.app
 After deploying, run:
 
 ```bash
-curl -sS -X POST https://tensor-talk.vercel.app/api/chat \
+curl -sS -N -X POST https://tensor-talk.vercel.app/api/chat \
   -H 'Content-Type: application/json' \
-  --data '{"message":"What are the faculty objectives?"}' | python -m json.tool
+  --data '{"message":"What are the faculty objectives?"}' \
+  > /tmp/tensortalk-production.ndjson
+
+node - <<'NODE'
+const fs = require("fs");
+const events = fs.readFileSync("/tmp/tensortalk-production.ndjson", "utf8")
+  .trim()
+  .split("\n")
+  .map(JSON.parse);
+console.log(events.find((event) => event.type === "done")?.response);
+NODE
 ```
 
 Expected:

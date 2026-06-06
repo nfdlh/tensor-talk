@@ -22,7 +22,7 @@ flowchart LR
   KB["UM handbook JSONL<br/>data/UM_RAG_Knowledge_Base.jsonl"]
   Prompt["Prompt with top 4 evidence chunks"]
   Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk-v2"]
-  Response["Answer + evidence + mode"]
+  Response["Streamed answer + thinking + evidence + mode"]
 
   User --> UI --> API
   API --> RAG
@@ -39,8 +39,9 @@ The request flow is:
 3. Add the retrieved handbook evidence to the prompt.
 4. Call the fine-tuned `nfdlh/tensortalk-v2` model on RunPod through
    `@ai-sdk/openai-compatible`.
-5. Return `{ answer, evidence, mode }` to the UI. The latest answer appears in
-   the conversation, and its evidence appears in the right panel.
+5. Stream model text back to the UI, returning `{ answer, evidence, mode }` and
+   optional `thinking` when the model emits a `<think>` block. The latest answer
+   appears in the conversation, and its evidence appears in the right panel.
 
 There is no OpenRouter path and no local answer fallback. If the RunPod endpoint
 is unavailable, `/api/chat` returns an error instead of generating a fallback

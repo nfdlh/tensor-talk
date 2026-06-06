@@ -14,13 +14,13 @@ sequenceDiagram
   participant Model as RunPod vLLM
 
   Student->>UI: Submit handbook question
-  UI->>API: ky.post("/api/chat", { message })
+  UI->>API: fetch("/api/chat", streamed message)
   API->>RAG: retrieveContext(message, 4)
   RAG->>KB: Load and cache 521 handbook rows
   RAG-->>API: Evidence chunks with source, section, pages, text
   API->>Model: Prompt + evidence through @ai-sdk/openai-compatible
   Model-->>API: Generated answer text
-  API-->>UI: { answer, evidence, mode }
+  API-->>UI: Streamed chunks, then { answer, evidence, mode, thinking? }
   UI-->>Student: Latest answer plus evidence panel
 ```
 
@@ -28,11 +28,11 @@ sequenceDiagram
 
 - `components/tensor-talk-client.tsx` owns the chat screen, quick prompts,
   mutation state, error text, and latest-answer evidence panel.
-- `lib/chat-client.ts` sends browser requests to `/api/chat` with `ky` and turns
-  API errors into user-visible messages.
+- `lib/chat-client.ts` sends browser requests to `/api/chat` with `fetch`,
+  reads the NDJSON stream, and turns API errors into user-visible messages.
 - `app/api/chat/route.ts` validates the message, retrieves evidence, builds the
-  prompt, calls the hosted model, strips `<think>` blocks, and returns
-  `{ answer, evidence, mode }`.
+  prompt, streams the hosted model, separates `<think>` blocks into optional
+  `thinking`, and returns `{ answer, evidence, mode, thinking? }`.
 - `lib/rag.ts` loads `data/UM_RAG_Knowledge_Base.jsonl`, builds a cached
   MiniSearch index, filters weak matches, and returns the top evidence chunks.
 - `data/UM_RAG_Knowledge_Base.jsonl` is the local handbook knowledge base. It
@@ -100,12 +100,15 @@ tensortalk-endpoint:<model-name>
 
 There is no local answer fallback and no OpenRouter route. If
 `TENSORTALK_API_BASE_URL` is missing, `/api/chat` returns a 502 response with a
-public setup message. If the RunPod endpoint or model call fails, `/api/chat`
-returns:
+public setup message. If the RunPod endpoint or model call fails before
+streaming starts, `/api/chat` returns a 502 response:
 
 ```text
 The fine-tuned TensorTalk model could not be reached.
 ```
+
+If a model call starts and then fails mid-stream, the API sends an NDJSON
+`error` event because the HTTP status has already been committed.
 
 This is intentional because the current app should use the hosted fine-tuned
 TensorTalk model instead of generating local evidence-only answers.

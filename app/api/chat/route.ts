@@ -1,6 +1,11 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateText } from "ai";
+import { streamText } from "ai";
 
+import {
+  parseModelText,
+  type ChatResponse,
+  type ChatStreamEvent,
+} from "@/lib/chat";
 import { retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
@@ -21,13 +26,9 @@ export async function POST(request: Request) {
   try {
     const evidence = retrieveContext(message, 4);
     const prompt = buildPrompt(message, evidence);
-    const modelAnswer = await callFineTunedModel(prompt);
+    const modelStream = await createFineTunedModelStream(prompt, evidence);
 
-    return Response.json({
-      answer: modelAnswer.answer,
-      evidence,
-      mode: modelAnswer.mode,
-    });
+    return modelStream;
   } catch (error) {
     return Response.json(
       {
@@ -73,7 +74,10 @@ function buildPrompt(
   return promptParts.join("\n");
 }
 
-async function callFineTunedModel(prompt: string) {
+async function createFineTunedModelStream(
+  prompt: string,
+  evidence: ReturnType<typeof retrieveContext>,
+) {
   const baseURL = process.env.TENSORTALK_API_BASE_URL;
   const apiKey =
     process.env.TENSORTALK_API_KEY ??
@@ -90,7 +94,7 @@ async function callFineTunedModel(prompt: string) {
     baseURL,
     apiKey,
   });
-  const { text } = await generateText({
+  const result = streamText({
     model: tensorTalk(modelName),
     prompt,
     maxOutputTokens: 512,
@@ -98,16 +102,73 @@ async function callFineTunedModel(prompt: string) {
     timeout: MODEL_TIMEOUT_MS,
     maxRetries: 1,
   });
-  const answer = normalizeModelText(text);
+  const mode = `tensortalk-endpoint:${modelName}`;
+  const encoder = new TextEncoder();
+  const iterator = result.textStream[Symbol.asyncIterator]();
+  const firstChunk = await iterator.next();
 
-  if (!answer) {
+  if (firstChunk.done) {
     throw new Error("Fine-tuned model returned an empty answer.");
   }
 
-  return {
-    answer,
-    mode: `tensortalk-endpoint:${modelName}`,
-  };
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let rawText = "";
+
+      function write(event: ChatStreamEvent) {
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      }
+
+      try {
+        write({ type: "metadata", evidence, mode });
+        rawText += firstChunk.value;
+        write({ type: "text", text: firstChunk.value });
+
+        for (;;) {
+          const chunk = await iterator.next();
+
+          if (chunk.done) {
+            break;
+          }
+
+          rawText += chunk.value;
+          write({ type: "text", text: chunk.value });
+        }
+
+        const { answer, thinking } = parseModelText(rawText);
+        const finalAnswer =
+          answer ??
+          (thinking ? "The model did not return a final answer." : null);
+
+        if (!finalAnswer) {
+          throw new Error("Fine-tuned model returned an empty answer.");
+        }
+
+        const response: ChatResponse = {
+          answer: finalAnswer,
+          evidence,
+          mode,
+          ...(thinking ? { thinking } : {}),
+        };
+
+        write({ type: "done", response });
+        controller.close();
+      } catch (error) {
+        write({ type: "error", error: getPublicModelError(error) });
+        controller.close();
+      }
+    },
+    async cancel() {
+      await iterator.return?.();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  });
 }
 
 async function parseMessage(request: Request) {
@@ -129,15 +190,6 @@ async function parseMessage(request: Request) {
   } catch {
     return null;
   }
-}
-
-function normalizeModelText(text: string | null | undefined) {
-  const withoutThinking = text
-    ?.replace(/<think>[\s\S]*?<\/think>/gi, "")
-    ?.replace(/<think>[\s\S]*$/i, "");
-  const trimmed = withoutThinking?.trim();
-
-  return trimmed ? trimmed : null;
 }
 
 function getPublicModelError(error: unknown) {
