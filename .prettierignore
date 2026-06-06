@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+build
+coverage
+.vercel
+
+.env*
+!.env.example
+
+pnpm-lock.yaml
+data/*.jsonl
+data/*.sqlite

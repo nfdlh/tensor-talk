@@ -134,7 +134,6 @@ export function TensorTalkClient() {
     activeThread?.turns.at(-1);
   const latestTurn = activeThread?.turns.at(-1);
   const isPending = Boolean(pendingTurnId);
-  const canSubmit = Boolean(activeThread) && !isPending;
   const isDark = resolvedTheme === "dark";
   const latestModels = latestTurn?.models ?? [];
   const activeContext = selectedTurn?.context ?? latestTurn?.context;
@@ -889,7 +888,7 @@ export function TensorTalkClient() {
                               variant="default"
                               size="sm"
                               className="ml-auto shrink-0"
-                              disabled={!canSubmit}
+                              disabled={isPending}
                             >
                               {isPending ? (
                                 <Spinner data-icon="inline-start" />
