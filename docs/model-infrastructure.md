@@ -21,6 +21,8 @@ Vercel production alias: https://tensor-talk.vercel.app
 
 Do not commit API keys. Local secrets live in `.env.local`. Vercel secrets live in Vercel Project Settings or `vercel env`.
 
+For the request-by-request app flow, see `docs/architecture.md`.
+
 ## App contract
 
 The Next.js API route is:
@@ -68,4 +70,3 @@ mode: tensortalk-endpoint:nfdlh/tensortalk
 ```
 
 The answer should not include `<think>` blocks. The API route strips those before returning text to the frontend.
-
