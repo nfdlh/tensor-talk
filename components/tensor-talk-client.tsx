@@ -129,9 +129,9 @@ export function TensorTalkClient() {
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white">
+                <div className="flex size-12 shrink-0 items-center justify-center">
                   <Image
-                    src="/um-mark.png"
+                    src="/um-mark-transparent.png"
                     alt=""
                     width={48}
                     height={48}
