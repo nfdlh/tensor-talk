@@ -4,15 +4,7 @@ Next.js 16 web app for the UM FSKTM handbook assistant.
 
 ![TensorTalk architecture](public/tensortalk-architecture.png)
 
-The current production app uses:
-
-- pnpm
-- Tailwind CSS v4
-- shadcn/ui
-- TanStack Query
-- ky
-- next-themes
-- Vercel AI SDK with an OpenAI-compatible RunPod/vLLM endpoint
+Model repo: [nfdlh/tensortalk](https://huggingface.co/nfdlh/tensortalk)
 
 ## How it works
 
@@ -65,28 +57,13 @@ Open `http://localhost:3000`.
 
 ## Connect TensorTalk model
 
-Create `.env.local`:
+Copy the example environment file:
 
 ```bash
-TENSORTALK_MODEL=nfdlh/tensortalk
-TENSORTALK_API_BASE_URL=https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
-TENSORTALK_API_KEY=your_runpod_api_key
+cp .env.example .env.local
 ```
 
-`TENSORTALK_API_KEY` is the RunPod API key. Do not commit `.env.local`.
-
-`TENSORTALK_MODEL` defaults to `nfdlh/tensortalk` in code, but keep it explicit
-in env so the served model name, RunPod template, and Vercel config stay aligned.
-
-The current RunPod Serverless endpoint is `2y1ra2h7x2bzii`. It serves
-`nfdlh/tensortalk` through vLLM's OpenAI-compatible API:
-
-```bash
-https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
-```
-
-For Vercel production, the same three variables must exist in Project Settings.
-After changing them, redeploy with `vercel --prod --yes`.
+Then fill `TENSORTALK_API_KEY` in `.env.local`. The file is gitignored.
 
 ## Infrastructure docs
 
