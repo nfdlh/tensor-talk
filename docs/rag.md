@@ -1,7 +1,8 @@
 # TensorTalk RAG
 
-TensorTalk has two retrieval implementations. The chat UI defaults to semantic
-vectors, and MiniSearch is still available as the fast lexical path.
+TensorTalk has two local retrieval implementations plus a No RAG route. The
+chat UI defaults to semantic vectors, MiniSearch is still available as the fast
+lexical path, and No RAG disables local handbook evidence.
 
 The shared data source is `data/UM_RAG_Knowledge_Base.jsonl`.
 
@@ -14,12 +15,14 @@ flowchart LR
   Semantic["Semantic vectors<br/>OpenRouter embeddings"]
   SQLite["SQLite vector store<br/>data/UM_RAG_Vectors.sqlite"]
   Lexical["MiniSearch<br/>fuzzy + prefix"]
+  None["No RAG<br/>skip local retrieval"]
   Evidence["Evidence chunks<br/>semantic top 3, lexical top 4"]
   Prompt["Prompt context"]
 
   Question --> Mode
   Mode --> Semantic --> SQLite --> Evidence
   Mode --> Lexical --> Evidence
+  Mode --> None
   Evidence --> Prompt
 ```
 
@@ -119,9 +122,50 @@ Kept rows are rescored with exact question matches, grounded answer-bank hits,
 term hits, and direct-subject boosts before the top 4 lexical results are
 returned.
 
+## No RAG mode
+
+No RAG returns no local handbook evidence. With Web Off, the model answers from
+its own parameters and the prompt tells it to state when exact official evidence
+is unavailable. With Web Auto or Web On, accepted official web evidence can
+still be added to the prompt.
+
+## Official web search
+
+Official web search is separate from local RAG. Web Auto runs local RAG first
+and then uses the hosted route planner plus deterministic guards to decide
+whether Exa is needed. Web On runs Exa and local RAG in parallel when local RAG
+is enabled. Web Off never calls Exa.
+
+The Exa request uses raw retrieval only:
+
+```text
+type: auto
+numResults: 8
+includeDomains: official UM/FSKTM allowlist
+contents: highlights + limited text
+```
+
+`lib/web-agent.ts` accepts only official UM/FSKTM pages and PDFs, rejects fake
+or malformed URLs, asset URLs, blocked/empty pages, and low-support results,
+then keeps at most 3 web evidence items. Rejected URLs are trace metadata only
+and never enter the prompt.
+
+## Grounding and context
+
+When accepted evidence exists, `lib/grounding.ts` checks exact facts in the
+draft answer against accepted evidence metadata and text. If unsupported exact
+facts remain, the API runs one repair pass and keeps the repair only when it
+improves support.
+
+Thread history is bounded by `lib/context-budget.ts`. The live RunPod endpoint
+is treated as a 4096-token context window, output tokens are reserved, evidence
+and prompt overhead are counted, and newer turns are prioritized. The API
+returns context metadata so the UI can show usage and truncation state.
+
 ## Prompt handoff
 
-Both modes return the same evidence shape. The API route inserts the selected
-evidence into the hosted model prompt with source document, scope, section,
-subsection, pages, and source text. The same evidence array is returned to the
-UI so the right panel can show the sections behind the latest answer.
+All evidence paths return the same `Evidence` shape. The API route inserts only
+accepted evidence into the hosted model prompt with source document, scope,
+section, subsection, pages, official URL metadata, support score, and source
+text. The same accepted evidence array is returned to the UI so the selected
+turn Evidence panel can show the support behind any previous answer.

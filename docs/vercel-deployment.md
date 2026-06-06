@@ -21,11 +21,16 @@ TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
 OPENROUTER_API_KEY
 OPENROUTER_EMBEDDING_MODEL
+EXA_API_KEY
+THREAD_TITLE_MODEL
 ```
 
 Semantic vector mode reads OpenRouter for embeddings and the TensorTalk endpoint
 for generation. Lexical mode reads MiniSearch for retrieval and uses the same
 TensorTalk endpoint for generation.
+Official web search reads Exa only when Web On is selected or Web Auto decides
+official web evidence is required. Thread titles use OpenRouter when available
+and fall back to a trimmed question when unavailable.
 
 Check Vercel env vars:
 
@@ -41,10 +46,13 @@ vercel env add TENSORTALK_API_BASE_URL production --force
 vercel env add TENSORTALK_API_KEY production --force
 vercel env add OPENROUTER_API_KEY production --force
 vercel env add OPENROUTER_EMBEDDING_MODEL production --force
+vercel env add EXA_API_KEY production --force
+vercel env add THREAD_TITLE_MODEL production --force
 ```
 
 Use the RunPod API key for `TENSORTALK_API_KEY`.
 Use the OpenRouter key for `OPENROUTER_API_KEY`.
+Use the Exa key for `EXA_API_KEY`.
 
 ## Deploy
 
@@ -67,7 +75,7 @@ After deploying, run:
 ```bash
 curl -sS -N -X POST https://tensor-talk.vercel.app/api/chat \
   -H 'Content-Type: application/json' \
-  --data '{"message":"What are the faculty objectives?"}' \
+  --data '{"message":"What are the faculty objectives?","retrievalMode":"semantic","webMode":"off"}' \
   > /tmp/tensortalk-production.ndjson
 
 node - <<'NODE'
@@ -85,11 +93,20 @@ Expected:
 ```text
 mode: tensortalk-endpoint:nfdlh/tensortalk-v2
 retrievalMode: semantic
+webMode: off
 answer: present
 evidence: present
 ```
 
-To test lexical retrieval, add `"retrievalMode":"lexical"` to the request body.
-If a response says `OPENROUTER_API_KEY is required` or
-`TENSORTALK_API_BASE_URL is required`, the matching Vercel production env is
-missing or the deployment was built before the env was added.
+Test the other routes by changing the request body:
+
+```text
+No RAG + Web Off: {"message":"What is FSKTM?","retrievalMode":"none","webMode":"off"}
+No RAG + Web On: {"message":"kat mana parking?","retrievalMode":"none","webMode":"on"}
+Lexical + Web Auto: {"message":"What is industrial training?","retrievalMode":"lexical","webMode":"auto"}
+```
+
+If a response says `OPENROUTER_API_KEY is required`,
+`TENSORTALK_API_BASE_URL is required`, or `EXA_API_KEY is required`, the
+matching Vercel production env is missing or the deployment was built before
+the env was added.
