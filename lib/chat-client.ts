@@ -1,5 +1,6 @@
 import {
   parseModelText,
+  type ChatStage,
   type ChatRequest,
   type ChatResponse,
   type ChatStreamEvent,
@@ -8,6 +9,7 @@ import {
 export async function sendChatMessage(
   payload: ChatRequest,
   onUpdate?: (partial: Partial<ChatResponse>) => void,
+  onStage?: (stage: ChatStage) => void,
 ) {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -46,12 +48,21 @@ export async function sendChatMessage(
 
       const event = JSON.parse(line) as ChatStreamEvent;
 
+      if (event.type === "stage") {
+        onStage?.(event.stage);
+        continue;
+      }
+
       if (event.type === "metadata") {
         onUpdate?.({
           evidence: event.evidence,
           mode: event.mode,
           models: event.models,
           retrievalMode: event.retrievalMode,
+          webMode: event.webMode,
+          trace: event.trace,
+          grounding: event.grounding,
+          context: event.context,
         });
         continue;
       }

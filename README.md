@@ -8,9 +8,10 @@ Model repo: [nfdlh/tensortalk-v2](https://huggingface.co/nfdlh/tensortalk-v2)
 
 ## How it works
 
-TensorTalk is a retrieval-first handbook assistant. The browser never calls the
-model directly. It sends each question to the Next.js API route, which selects
-handbook evidence, adds that evidence to the prompt, and calls the hosted
+TensorTalk is a retrieval and official-web grounded handbook assistant. The
+browser never calls the model directly. It sends each question to the Next.js
+API route, which routes local RAG and official UM/FSKTM web search, filters
+evidence, adds accepted evidence to the prompt, and calls the hosted
 fine-tuned TensorTalk model.
 
 ```mermaid
@@ -18,40 +19,60 @@ flowchart LR
   User["Student browser"]
   UI["TensorTalk chat UI<br/>components/tensor-talk-client.tsx"]
   API["POST /api/chat<br/>app/api/chat/route.ts"]
-  Mode["Retrieval mode<br/>semantic default or lexical"]
+  Mode["Retrieval mode<br/>semantic, lexical, or no RAG"]
+  WebMode["Web mode<br/>auto, on, or off"]
   Semantic["OpenRouter BGE embeddings<br/>SQLite vector store"]
   Lexical["MiniSearch retriever<br/>lib/rag.ts"]
+  Exa["Exa raw search<br/>official UM/FSKTM allowlist"]
+  Guard["URL, fake URL, asset, and block guards"]
   KB["UM handbook JSONL<br/>data/UM_RAG_Knowledge_Base.jsonl"]
-  Prompt["Prompt with retrieved evidence chunks"]
+  Prompt["Prompt with accepted evidence only"]
   Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk-v2"]
-  Response["Streamed answer + evidence + mode"]
+  Judge["Grounding judge<br/>optional one-pass repair"]
+  Response["Streamed answer + evidence + trace"]
 
   User --> UI --> API
   API --> Mode
+  API --> WebMode
   Mode --> Semantic --> KB
   Mode --> Lexical --> KB
+  WebMode --> Exa --> Guard
   Semantic --> Prompt
   Lexical --> Prompt
-  API --> Prompt --> Model --> API
+  Guard --> Prompt
+  API --> Prompt --> Model --> Judge --> API
   API --> Response --> UI --> User
 ```
 
 The request flow is:
 
-1. Use the selected retrieval mode. Semantic vectors are the default; lexical
-   MiniSearch is still available in the chat UI.
-2. Keep the top semantic 3 or lexical 4 relevant handbook chunks as evidence.
-3. Add the retrieved handbook evidence to the prompt.
-4. Call the fine-tuned `nfdlh/tensortalk-v2` model endpoint through
+1. Use the selected retrieval mode: Semantic, Lexical, or No RAG. Semantic
+   vectors remain the default.
+2. Use the selected web mode: Web Auto, Web On, or Web Off. Web Auto runs the
+   route planner; Web On runs Exa and local RAG in parallel when RAG is enabled.
+3. Keep accepted local handbook evidence and up to 3 accepted official web
+   evidence items. Rejected web URLs stay in Trace only.
+4. Add accepted evidence to the prompt. No RAG + Web Off produces a model-only
+   answer labeled as ungrounded.
+5. Call the fine-tuned `nfdlh/tensortalk-v2` model endpoint through
    `@ai-sdk/openai-compatible`.
-5. Stream model text back to the UI, returning `{ answer, evidence, mode }` and
-   optional `thinking` when the model emits a `<think>` block. The latest answer
-   appears in the conversation, and its evidence appears in the right panel.
+6. Run the deterministic grounding judge when evidence exists, then perform one
+   repair pass if exact facts are unsupported.
+7. Stream model text and stage events back to the UI, returning answer,
+   evidence, trace, grounding, mode, and optional `thinking` when the model
+   emits a `<think>` block.
+8. Add bounded thread history for follow-up questions. TensorTalk treats the
+   live RunPod context window as 4096 tokens, reserves output space, includes
+   newer turns first, and reports included/omitted history plus estimated usage.
 
 Semantic mode uses OpenRouter `baai/bge-base-en-v1.5` embeddings and the
 SQLite vector index at `data/UM_RAG_Vectors.sqlite`. Lexical mode keeps the
-existing MiniSearch implementation. Both modes use the fine-tuned TensorTalk
-model for answer generation.
+existing MiniSearch implementation. Official web search uses Exa raw retrieval
+with an allowlist for UM and FSKTM domains. All modes use the fine-tuned
+TensorTalk model for answer generation.
+
+Thread history is stored locally in browser IndexedDB. The app does not store
+API keys or large Exa page text in the browser.
 
 For the retrieval details, see `docs/rag.md`.
 
@@ -98,6 +119,17 @@ OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
 Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to build the SQLite
 vector store.
 
+For official web search and automatic thread titles, fill:
+
+```text
+EXA_API_KEY=
+THREAD_TITLE_MODEL=google/gemini-3.1-flash-lite
+```
+
+`EXA_API_KEY` is required only when Web On is selected or Web Auto decides a web
+search is needed. Thread title generation uses OpenRouter and falls back to a
+trimmed question if it is unavailable.
+
 Start the app:
 
 ```bash
@@ -105,6 +137,14 @@ pnpm dev
 ```
 
 Open `http://localhost:3000`.
+
+Useful checks:
+
+```bash
+pnpm lint
+pnpm test
+pnpm build
+```
 
 ## Infrastructure docs
 

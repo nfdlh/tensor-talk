@@ -10,7 +10,7 @@ Endpoint id: 2y1ra2h7x2bzii
 OpenAI-compatible URL: https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
 Model served: nfdlh/tensortalk-v2
 Workers min: 0
-Workers max: 1
+Workers max: 2
 GPU candidates: NVIDIA RTX A5000, NVIDIA L4, NVIDIA GeForce RTX 3090
 Endpoint version: 2
 ```
@@ -85,8 +85,8 @@ too.
 ## Troubleshooting
 
 If the dashboard says all workers are busy, check whether there are multiple
-test requests in progress. The configured endpoint has `workersMax=1` to control
-cost.
+test requests in progress. The configured endpoint has `workersMax=2` to allow
+two concurrent workers while keeping cost controlled.
 
 If requests sit in queue for a long time, RunPod may be waiting for one of the
 selected GPU types. You can add more GPU types or temporarily increase

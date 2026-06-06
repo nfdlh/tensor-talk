@@ -121,9 +121,11 @@
     @apply border-border outline-ring/50;
     }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply overflow-hidden bg-background text-foreground antialiased;
+    height: 100%;
     }
   html {
-    @apply font-sans;
+    @apply overflow-hidden font-sans;
+    height: 100%;
     }
 }

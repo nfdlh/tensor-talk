@@ -13,6 +13,7 @@ import {
 
 export type HandbookEvidence = {
   kb_id: string;
+  sourceType?: "handbook";
   source_doc?: string;
   scope_label?: string;
   section?: string;
@@ -20,6 +21,10 @@ export type HandbookEvidence = {
   pages?: number[];
   source_text?: string;
   grounded_answer_bank?: string[];
+  rank?: number;
+  confidence?: number;
+  supportScore?: number;
+  supportBand?: "strong" | "moderate" | "weak";
 };
 
 type HandbookRow = HandbookEvidence & {
@@ -97,6 +102,7 @@ const SECTION_BONUS_WEIGHT = 0.04;
 const SUBSECTION_BONUS_WEIGHT = 0.03;
 const SOURCE_DOC_BONUS_WEIGHT = 0.02;
 const KEYWORD_BONUS_WEIGHT = 0.03;
+const LEXICAL_STRONG_SCORE = 80;
 
 let rowsCache: HandbookRow[] | null = null;
 let searchCache: MiniSearch<HandbookRow> | null = null;
@@ -165,6 +171,10 @@ export async function retrieveContext(
   topK = 4,
   mode: RetrievalMode = "lexical",
 ): Promise<HandbookEvidence[]> {
+  if (mode === "none") {
+    return [];
+  }
+
   if (mode === "semantic") {
     return retrieveSemanticContext(question, topK);
   }
@@ -183,7 +193,7 @@ function retrieveLexicalContext(question: string, topK = 4): HandbookEvidence[] 
   const queryTerms = meaningfulTerms(query);
   const subject = directQuestionSubject(query);
   const searchQuery = queryTerms.length > 0 ? queryTerms.join(" ") : query;
-  const matches = search
+  const scoredMatches = search
     .search(searchQuery)
     .map((match) => ({
       row: rows[Number(match.id)],
@@ -205,10 +215,15 @@ function retrieveLexicalContext(question: string, topK = 4): HandbookEvidence[] 
       ),
     }))
     .sort((left, right) => right.score - left.score)
-    .map((match) => match.row)
     .slice(0, topK);
-
-  return matches.map(toEvidence);
+  return scoredMatches.map((match, index) =>
+    toEvidence(
+      match.row,
+      index + 1,
+      lexicalConfidence(match.score),
+      question,
+    ),
+  );
 }
 
 async function retrieveSemanticContext(question: string, topK = 4) {
@@ -235,15 +250,22 @@ async function retrieveSemanticContext(question: string, topK = 4) {
     .sort((left, right) => right.denseScore - left.denseScore)
     .slice(0, rerankPool);
 
-  return denseHits
+  const scoredHits = denseHits
     .map((hit) => ({
       hit,
       score: semanticScore(hit, question, queryMeta),
     }))
     .sort((left, right) => right.score - left.score)
-    .map(({ hit }) => hit.row)
-    .slice(0, topK)
-    .map(toEvidence);
+    .slice(0, topK);
+
+  return scoredHits.map((item, index) =>
+    toEvidence(
+      item.hit.row,
+      index + 1,
+      semanticConfidence(item.score),
+      question,
+    ),
+  );
 }
 
 function loadVectorIndex() {
@@ -431,9 +453,20 @@ function contextScore(
   );
 }
 
-function toEvidence(row: HandbookRow): HandbookEvidence {
+function toEvidence(
+  row: HandbookRow,
+  rank: number,
+  confidence: number,
+  question: string,
+): HandbookEvidence {
+  const supportScore = supportScoreFromConfidence(
+    confidence,
+    overlapScore(question, row.source_text ?? ""),
+  );
+
   return {
     kb_id: row.kb_id,
+    sourceType: "handbook",
     source_doc: row.source_doc,
     scope_label: row.scope_label,
     section: row.section,
@@ -441,7 +474,56 @@ function toEvidence(row: HandbookRow): HandbookEvidence {
     pages: row.pages,
     source_text: row.source_text,
     grounded_answer_bank: row.grounded_answer_bank,
+    rank,
+    confidence,
+    supportScore,
+    supportBand: supportBand(supportScore),
   };
+}
+
+export function lexicalConfidence(score: number) {
+  return clamp(score / LEXICAL_STRONG_SCORE);
+}
+
+function semanticConfidence(score: number) {
+  return clamp((score + 1) / 2);
+}
+
+function supportScoreFromConfidence(confidence: number, questionOverlap: number) {
+  return clamp(0.75 * confidence + 0.25 * questionOverlap);
+}
+
+function supportBand(score: number): "strong" | "moderate" | "weak" {
+  if (score >= 0.72) {
+    return "strong";
+  }
+
+  if (score >= 0.52) {
+    return "moderate";
+  }
+
+  return "weak";
+}
+
+function overlapScore(left: string, right: string) {
+  const leftTerms = meaningfulTerms(left);
+
+  if (leftTerms.length === 0) {
+    return 0;
+  }
+
+  const rightTerms = new Set(meaningfulTerms(right));
+  const hits = leftTerms.filter((term) => rightTerms.has(term)).length;
+
+  return clamp(hits / leftTerms.length);
+}
+
+function clamp(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, value));
 }
 
 function answerScore(
