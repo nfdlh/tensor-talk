@@ -1,0 +1,71 @@
+<svg width="1672" height="941" viewBox="0 0 1672 941" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">TensorTalk architecture</title>
+  <desc id="desc">TensorTalk uses a Next.js app on Vercel, local MiniSearch handbook retrieval, a Stage 3 PPO fine-tuned Qwen3-8B model on Hugging Face, and RunPod vLLM serving.</desc>
+  <rect width="1672" height="941" fill="#f7f8f5"/>
+  <rect x="60" y="54" width="1552" height="833" rx="34" fill="#ffffff" stroke="#d7ddd2" stroke-width="2"/>
+  <text x="112" y="126" fill="#17352f" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="800">TensorTalk production architecture</text>
+  <text x="112" y="170" fill="#60706a" font-family="Inter, Arial, sans-serif" font-size="24">UM FSKTM handbook assistant with local retrieval plus Stage 3 PPO Qwen3-8B serving</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto">
+      <path d="M2 2L14 8L2 14V2Z" fill="#1d6156"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#17352f" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#soft)">
+    <rect x="112" y="262" width="238" height="156" rx="22" fill="#eef6f3" stroke="#a9c7be" stroke-width="2"/>
+    <text x="144" y="320" fill="#17352f" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">Student</text>
+    <text x="144" y="360" fill="#48645d" font-family="Inter, Arial, sans-serif" font-size="22">Browser chat UI</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="444" y="246" width="300" height="188" rx="22" fill="#f3f1ea" stroke="#c9bfa7" stroke-width="2"/>
+    <text x="480" y="306" fill="#332d1f" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">Vercel</text>
+    <text x="480" y="348" fill="#5f5847" font-family="Inter, Arial, sans-serif" font-size="22">Next.js frontend</text>
+    <text x="480" y="382" fill="#5f5847" font-family="Inter, Arial, sans-serif" font-size="22">POST /api/chat</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="836" y="198" width="300" height="148" rx="22" fill="#eef2fa" stroke="#aebee1" stroke-width="2"/>
+    <text x="872" y="258" fill="#1e325a" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">Local RAG</text>
+    <text x="872" y="300" fill="#4f5e7c" font-family="Inter, Arial, sans-serif" font-size="22">MiniSearch over 521</text>
+    <text x="872" y="332" fill="#4f5e7c" font-family="Inter, Arial, sans-serif" font-size="22">handbook chunks</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="836" y="406" width="300" height="166" rx="22" fill="#f6eeee" stroke="#deb6b6" stroke-width="2"/>
+    <text x="872" y="466" fill="#572c2c" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">Prompt</text>
+    <text x="872" y="508" fill="#754f4f" font-family="Inter, Arial, sans-serif" font-size="22">Question plus top 4</text>
+    <text x="872" y="540" fill="#754f4f" font-family="Inter, Arial, sans-serif" font-size="22">evidence chunks</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="1224" y="178" width="300" height="178" rx="22" fill="#eef6f3" stroke="#a9c7be" stroke-width="2"/>
+    <text x="1260" y="238" fill="#17352f" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">Hugging Face</text>
+    <text x="1260" y="280" fill="#48645d" font-family="Inter, Arial, sans-serif" font-size="22">nfdlh/tensortalk-v2</text>
+    <text x="1260" y="314" fill="#48645d" font-family="Inter, Arial, sans-serif" font-size="22">merged model files</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="1224" y="430" width="300" height="206" rx="22" fill="#f3f1ea" stroke="#c9bfa7" stroke-width="2"/>
+    <text x="1260" y="490" fill="#332d1f" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800">RunPod vLLM</text>
+    <text x="1260" y="532" fill="#5f5847" font-family="Inter, Arial, sans-serif" font-size="22">Serverless endpoint</text>
+    <text x="1260" y="566" fill="#5f5847" font-family="Inter, Arial, sans-serif" font-size="22">OpenAI-compatible API</text>
+    <text x="1260" y="600" fill="#5f5847" font-family="Inter, Arial, sans-serif" font-size="22">Ampere 24 GB GPU</text>
+  </g>
+
+  <path d="M350 340H430" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M744 340C790 340 790 272 820 272" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M986 346V390" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1136 490H1208" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1374 356V414" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1224 560C1076 700 648 700 604 452" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M444 390C360 520 280 520 226 434" stroke="#1d6156" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+  <rect x="156" y="702" width="1360" height="116" rx="22" fill="#17352f"/>
+  <text x="206" y="754" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800">Fine-tuning now documented in the runtime path</text>
+  <text x="206" y="794" fill="#d7e4df" font-family="Inter, Arial, sans-serif" font-size="22">Qwen3-8B base, Stage 3 PPO, rule-based preference reward, 900 training rows, 100 validation rows, served as nfdlh/tensortalk-v2.</text>
+</svg>

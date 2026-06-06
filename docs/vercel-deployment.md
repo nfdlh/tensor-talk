@@ -66,10 +66,9 @@ curl -sS -X POST https://tensor-talk.vercel.app/api/chat \
 Expected:
 
 ```text
-mode: tensortalk-endpoint:nfdlh/tensortalk
+mode: tensortalk-endpoint:nfdlh/tensortalk-v2
 answer: present
 evidence: present
 ```
 
 If the response says `TENSORTALK_API_BASE_URL is required`, the Vercel production env is missing or the deployment was built before the env was added.
-

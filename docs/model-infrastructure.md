@@ -13,7 +13,7 @@ The app uses three layers:
 The current production values are:
 
 ```text
-Hugging Face model: nfdlh/tensortalk
+Hugging Face model: nfdlh/tensortalk-v2
 RunPod endpoint id: 2y1ra2h7x2bzii
 RunPod OpenAI-compatible base URL: https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
 Vercel production alias: https://tensor-talk.vercel.app
@@ -36,7 +36,7 @@ It retrieves handbook evidence locally, builds a prompt, and calls the model thr
 Required environment variables:
 
 ```text
-TENSORTALK_MODEL=nfdlh/tensortalk
+TENSORTALK_MODEL=nfdlh/tensortalk-v2
 TENSORTALK_API_BASE_URL=https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
 TENSORTALK_API_KEY=<RunPod API key>
 ```
@@ -66,7 +66,7 @@ Expected response shape:
 ```text
 answer: present
 evidence: array with retrieved handbook chunks
-mode: tensortalk-endpoint:nfdlh/tensortalk
+mode: tensortalk-endpoint:nfdlh/tensortalk-v2
 ```
 
 The answer should not include `<think>` blocks. The API route strips those before returning text to the frontend.

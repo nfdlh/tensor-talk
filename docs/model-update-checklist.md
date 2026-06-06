@@ -21,16 +21,17 @@ Sharded models are fine if the repo includes all shard files and `model.safetens
 
 ## 2. Upload to Hugging Face
 
-Use a versioned repo when possible:
+Use a versioned repo when possible. The current production repo is
+`nfdlh/tensortalk-v2`; use the next version for a future replacement.
 
 ```bash
-hf upload-large-folder nfdlh/tensortalk-v2 /path/to/merged_model --repo-type model
+hf upload-large-folder nfdlh/tensortalk-v3 /path/to/merged_model --repo-type model
 ```
 
 Verify:
 
 ```bash
-hf download nfdlh/tensortalk-v2 model.safetensors --dry-run
+hf download nfdlh/tensortalk-v3 model.safetensors --dry-run
 ```
 
 ## 3. Update RunPod
@@ -38,8 +39,8 @@ hf download nfdlh/tensortalk-v2 model.safetensors --dry-run
 Update or recreate the RunPod vLLM endpoint so it loads the new repo:
 
 ```text
-MODEL_NAME=nfdlh/tensortalk-v2
-OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v2
+MODEL_NAME=nfdlh/tensortalk-v3
+OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v3
 ```
 
 If using the same endpoint id, the base URL stays:
@@ -90,4 +91,3 @@ evidence: present
 ```
 
 Also check that the answer does not contain raw `<think>` blocks.
-

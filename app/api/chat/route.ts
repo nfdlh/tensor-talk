@@ -5,7 +5,7 @@ import { retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
 
-const DEFAULT_TENSORTALK_MODEL = "nfdlh/tensortalk";
+const DEFAULT_TENSORTALK_MODEL = "nfdlh/tensortalk-v2";
 const MODEL_TIMEOUT_MS = 60_000;
 
 export async function POST(request: Request) {
@@ -132,7 +132,9 @@ async function parseMessage(request: Request) {
 }
 
 function normalizeModelText(text: string | null | undefined) {
-  const withoutThinking = text?.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  const withoutThinking = text
+    ?.replace(/<think>[\s\S]*?<\/think>/gi, "")
+    ?.replace(/<think>[\s\S]*$/i, "");
   const trimmed = withoutThinking?.trim();
 
   return trimmed ? trimmed : null;
@@ -143,7 +145,7 @@ function getPublicModelError(error: unknown) {
     error instanceof Error &&
     error.message === "Missing TENSORTALK_API_BASE_URL."
   ) {
-    return "TENSORTALK_API_BASE_URL is required because nfdlh/tensortalk is uploaded to Hugging Face Hub but still needs an inference endpoint.";
+    return "TENSORTALK_API_BASE_URL is required because nfdlh/tensortalk-v2 is uploaded to Hugging Face Hub but still needs an inference endpoint.";
   }
 
   return "The fine-tuned TensorTalk model could not be reached.";

@@ -8,10 +8,11 @@ RunPod serves the Hugging Face model through an OpenAI-compatible vLLM endpoint.
 Endpoint name: tensortalk-vllm
 Endpoint id: 2y1ra2h7x2bzii
 OpenAI-compatible URL: https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
-Model served: nfdlh/tensortalk
+Model served: nfdlh/tensortalk-v2
 Workers min: 0
 Workers max: 1
 GPU candidates: NVIDIA RTX A5000, NVIDIA L4, NVIDIA GeForce RTX 3090
+Endpoint version: 2
 ```
 
 `workersMin=0` keeps cost lower because the endpoint scales to zero when idle. First requests may be slow because RunPod has to start a worker and load the model.
@@ -27,8 +28,8 @@ runpod/worker-v1-vllm:v2.20.0
 Important template environment variables:
 
 ```text
-MODEL_NAME=nfdlh/tensortalk
-OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk
+MODEL_NAME=nfdlh/tensortalk-v2
+OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v2
 MAX_MODEL_LEN=4096
 MAX_NUM_SEQS=1
 GPU_MEMORY_UTILIZATION=0.90
@@ -45,7 +46,7 @@ curl -sS https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1/chat/completions \
   -H "Authorization: Bearer $RUNPOD_API_KEY" \
   -H "Content-Type: application/json" \
   --data '{
-    "model": "nfdlh/tensortalk",
+    "model": "nfdlh/tensortalk-v2",
     "messages": [
       {
         "role": "user",
@@ -61,18 +62,18 @@ curl -sS https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1/chat/completions \
 
 Preferred update path:
 
-1. Upload the new merged model to a versioned Hugging Face repo, for example `nfdlh/tensortalk-v2`.
+1. Upload the new merged model to a versioned Hugging Face repo, for example `nfdlh/tensortalk-v3`.
 2. Update or recreate the RunPod template with:
 
 ```text
-MODEL_NAME=nfdlh/tensortalk-v2
-OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v2
+MODEL_NAME=nfdlh/tensortalk-v3
+OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v3
 ```
 
 3. Update Vercel:
 
 ```text
-TENSORTALK_MODEL=nfdlh/tensortalk-v2
+TENSORTALK_MODEL=nfdlh/tensortalk-v3
 ```
 
 The `TENSORTALK_API_BASE_URL` can stay the same if the same RunPod endpoint is updated. If a new RunPod endpoint is created, update `TENSORTALK_API_BASE_URL` too.
@@ -89,4 +90,3 @@ If vLLM fails to load the model, the usual causes are:
 - missing tokenizer/config files
 - the model does not fit the selected GPU memory
 - the model name in RunPod does not match the model requested by Vercel
-

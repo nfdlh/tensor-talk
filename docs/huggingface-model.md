@@ -3,8 +3,11 @@
 The current fine-tuned model is uploaded to:
 
 ```text
-https://huggingface.co/nfdlh/tensortalk
+https://huggingface.co/nfdlh/tensortalk-v2
 ```
+
+`nfdlh/tensortalk-v2` is the Stage 3 PPO merged/full inference model. The older
+`nfdlh/tensortalk` repo is the previous production model.
 
 ## Required files
 
@@ -68,4 +71,3 @@ If the model is sharded, dry-run one of the shard files or inspect the repo file
 You can overwrite `nfdlh/tensortalk`, but versioned repos are safer. Reusing the same repo name makes it harder to know which model RunPod has cached.
 
 If you do overwrite `nfdlh/tensortalk`, restart or recreate the RunPod endpoint so vLLM does not keep serving an older cached copy.
-

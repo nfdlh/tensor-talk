@@ -2,9 +2,9 @@
 
 Next.js 16 web app for the UM FSKTM handbook assistant.
 
-![TensorTalk architecture](public/tensortalk-architecture.png)
+![TensorTalk architecture](public/tensortalk-architecture.svg)
 
-Model repo: [nfdlh/tensortalk](https://huggingface.co/nfdlh/tensortalk)
+Model repo: [nfdlh/tensortalk-v2](https://huggingface.co/nfdlh/tensortalk-v2)
 
 ## How it works
 
@@ -21,7 +21,7 @@ flowchart LR
   RAG["MiniSearch retriever<br/>lib/rag.ts"]
   KB["UM handbook JSONL<br/>data/UM_RAG_Knowledge_Base.jsonl"]
   Prompt["Prompt with top 4 evidence chunks"]
-  Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk"]
+  Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk-v2"]
   Response["Answer + evidence + mode"]
 
   User --> UI --> API
@@ -37,7 +37,7 @@ The request flow is:
 1. Search `data/UM_RAG_Knowledge_Base.jsonl` locally with MiniSearch.
 2. Keep the top 4 relevant handbook chunks as evidence.
 3. Add the retrieved handbook evidence to the prompt.
-4. Call the fine-tuned `nfdlh/tensortalk` model on RunPod through
+4. Call the fine-tuned `nfdlh/tensortalk-v2` model on RunPod through
    `@ai-sdk/openai-compatible`.
 5. Return `{ answer, evidence, mode }` to the UI. The latest answer appears in
    the conversation, and its evidence appears in the right panel.
@@ -47,6 +47,25 @@ is unavailable, `/api/chat` returns an error instead of generating a fallback
 answer.
 
 For the retrieval details, see `docs/rag.md`.
+
+## Fine-tuned model
+
+The current deployed model is TensorTalk v2, a Stage 3 PPO fine-tune of Qwen3-8B
+for UM FSKTM handbook question answering.
+
+- Base model: Qwen3-8B
+- Fine-tuning stage: Stage 3 PPO
+- Reward type: balanced rule-based preference reward function
+- Training rows: 900
+- Validation rows: 100
+- PPO epochs: 2
+- Training log records: 900
+- Served model name: `nfdlh/tensortalk-v2`
+
+The Hugging Face repo contains the merged/full inference model for vLLM:
+`model.safetensors`, tokenizer/config files, and small PPO proof artifacts. The
+RunPod template should serve the same model name that Vercel sends in
+`TENSORTALK_MODEL`.
 
 ## Run locally
 

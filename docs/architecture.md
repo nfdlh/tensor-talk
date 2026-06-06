@@ -66,7 +66,7 @@ section, subsection, pages, and source text.
 The current model path is:
 
 ```text
-Next.js API -> RunPod Serverless -> vLLM OpenAI-compatible endpoint -> nfdlh/tensortalk
+Next.js API -> RunPod Serverless -> vLLM OpenAI-compatible endpoint -> nfdlh/tensortalk-v2
 ```
 
 The API reads these variables:
@@ -77,7 +77,7 @@ TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
 ```
 
-`TENSORTALK_MODEL` defaults to `nfdlh/tensortalk`. `TENSORTALK_API_KEY` may also
+`TENSORTALK_MODEL` defaults to `nfdlh/tensortalk-v2`. `TENSORTALK_API_KEY` may also
 come from `HUGGINGFACE_API_KEY` or `HF_TOKEN`, but the intended production key is
 the RunPod API key.
 
