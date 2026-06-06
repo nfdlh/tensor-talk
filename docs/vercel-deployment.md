@@ -13,7 +13,7 @@ The local repo is linked through `.vercel/project.json`.
 
 ## Production environment variables
 
-Current production variables:
+Production variables:
 
 ```text
 TENSORTALK_MODEL
@@ -23,9 +23,9 @@ OPENROUTER_API_KEY
 OPENROUTER_EMBEDDING_MODEL
 ```
 
-Semantic vector mode reads OpenRouter for embeddings and TensorTalk/RunPod for
-generation. Lexical mode reads TensorTalk/RunPod for generation and MiniSearch
-for retrieval.
+Semantic vector mode reads OpenRouter for embeddings and the TensorTalk endpoint
+for generation. Lexical mode reads MiniSearch for retrieval and uses the same
+TensorTalk endpoint for generation.
 
 Check Vercel env vars:
 
@@ -54,7 +54,7 @@ Deploy production:
 vercel --prod --yes
 ```
 
-Inspect the current production deployment:
+Inspect the production deployment:
 
 ```bash
 vercel inspect tensor-talk.vercel.app
@@ -89,8 +89,7 @@ answer: present
 evidence: present
 ```
 
-To test the lexical TensorTalk endpoint path, add `"retrievalMode":"lexical"` to
-the request body. If the semantic response says `OPENROUTER_API_KEY is required`
-or the lexical response says `TENSORTALK_API_BASE_URL is required`, the matching
-Vercel production env is missing or the deployment was built before the env was
-added.
+To test lexical retrieval, add `"retrievalMode":"lexical"` to the request body.
+If a response says `OPENROUTER_API_KEY is required` or
+`TENSORTALK_API_BASE_URL is required`, the matching Vercel production env is
+missing or the deployment was built before the env was added.

@@ -2,7 +2,7 @@
 
 RunPod serves the Hugging Face model through an OpenAI-compatible vLLM endpoint.
 
-## Current endpoint
+## Configured endpoint
 
 ```text
 Endpoint name: tensortalk-vllm
@@ -15,9 +15,11 @@ GPU candidates: NVIDIA RTX A5000, NVIDIA L4, NVIDIA GeForce RTX 3090
 Endpoint version: 2
 ```
 
-`workersMin=0` keeps cost lower because the endpoint scales to zero when idle. First requests may be slow because RunPod has to start a worker and load the model.
+`workersMin=0` keeps cost lower because the endpoint scales to zero when idle.
+First requests may be slow because RunPod has to start a worker and load the
+model.
 
-## Current template
+## Configured template
 
 The endpoint was created from the official RunPod vLLM worker image:
 
@@ -76,13 +78,19 @@ OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v3
 TENSORTALK_MODEL=nfdlh/tensortalk-v3
 ```
 
-The `TENSORTALK_API_BASE_URL` can stay the same if the same RunPod endpoint is updated. If a new RunPod endpoint is created, update `TENSORTALK_API_BASE_URL` too.
+The `TENSORTALK_API_BASE_URL` can stay the same if the same RunPod endpoint is
+updated. If a new RunPod endpoint is created, update `TENSORTALK_API_BASE_URL`
+too.
 
 ## Troubleshooting
 
-If the dashboard says all workers are busy, check whether there are multiple test requests in progress. The current endpoint has `workersMax=1` to control cost.
+If the dashboard says all workers are busy, check whether there are multiple
+test requests in progress. The configured endpoint has `workersMax=1` to control
+cost.
 
-If requests sit in queue for a long time, RunPod may be waiting for one of the selected GPU types. You can add more GPU types or temporarily increase `workersMax`.
+If requests sit in queue for a long time, RunPod may be waiting for one of the
+selected GPU types. You can add more GPU types or temporarily increase
+`workersMax`.
 
 If vLLM fails to load the model, the usual causes are:
 

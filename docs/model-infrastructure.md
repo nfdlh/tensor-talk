@@ -2,27 +2,26 @@
 
 This document records how TensorTalk connects the web app to the fine-tuned model.
 
-## Current setup
+## Setup
 
-The app now supports two chat implementations:
+The app supports two retrieval modes:
 
 1. Semantic vectors, the default chat UI mode.
-2. The previous lexical TensorTalk endpoint path.
+2. Lexical MiniSearch, the local retriever.
 
-The lexical path uses three layers:
+Both modes use the same hosted TensorTalk generation path:
 
 1. Hugging Face Hub stores the model files.
 2. RunPod Serverless runs the model with vLLM.
 3. Vercel hosts the Next.js frontend/API and calls RunPod through the Vercel AI SDK.
 
-The semantic path uses:
+Semantic retrieval adds:
 
 1. OpenRouter embeddings with `baai/bge-base-en-v1.5`.
 2. `data/UM_RAG_Vectors.sqlite` for normalized handbook vectors.
-3. RunPod Serverless with vLLM serves `nfdlh/tensortalk-v2` for answer
-   generation.
+3. The same hosted `nfdlh/tensortalk-v2` endpoint for answer generation.
 
-The current production values are:
+Configured values:
 
 ```text
 Hugging Face model: nfdlh/tensortalk-v2
@@ -31,7 +30,8 @@ RunPod OpenAI-compatible base URL: https://api.runpod.ai/v2/2y1ra2h7x2bzii/opena
 Vercel production alias: https://tensor-talk.vercel.app
 ```
 
-Do not commit API keys. Local secrets live in `.env.local`. Vercel secrets live in Vercel Project Settings or `vercel env`.
+Do not commit API keys. Local secrets live in `.env.local`. Vercel secrets live
+in Vercel Project Settings or `vercel env`.
 
 For the request-by-request app flow, see `docs/architecture.md`.
 
@@ -59,9 +59,8 @@ OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
 Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to create the SQLite
 vector store used by semantic mode.
 
-There is no local answer fallback. If the selected hosted provider is
-unavailable, `/api/chat` returns an error instead of generating a local
-evidence-only answer.
+If the hosted model endpoint is unavailable, `/api/chat` returns an error
+instead of generating an evidence-only local answer.
 
 ## Verification commands
 

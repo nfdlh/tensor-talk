@@ -2,7 +2,7 @@
 
 Next.js 16 web app for the UM FSKTM handbook assistant.
 
-![TensorTalk architecture](public/tensortalk-architecture.png)
+![TensorTalk architecture](public/tensortalk-architecture.svg)
 
 Model repo: [nfdlh/tensortalk-v2](https://huggingface.co/nfdlh/tensortalk-v2)
 
@@ -11,7 +11,7 @@ Model repo: [nfdlh/tensortalk-v2](https://huggingface.co/nfdlh/tensortalk-v2)
 TensorTalk is a retrieval-first handbook assistant. The browser never calls the
 model directly. It sends each question to the Next.js API route, which selects
 handbook evidence, adds that evidence to the prompt, and calls the hosted
-fine-tuned model.
+fine-tuned TensorTalk model.
 
 ```mermaid
 flowchart LR
@@ -24,7 +24,7 @@ flowchart LR
   KB["UM handbook JSONL<br/>data/UM_RAG_Knowledge_Base.jsonl"]
   Prompt["Prompt with retrieved evidence chunks"]
   Model["RunPod vLLM endpoint<br/>nfdlh/tensortalk-v2"]
-  Response["Streamed answer + thinking + evidence + mode"]
+  Response["Streamed answer + evidence + mode"]
 
   User --> UI --> API
   API --> Mode
@@ -39,10 +39,10 @@ flowchart LR
 The request flow is:
 
 1. Use the selected retrieval mode. Semantic vectors are the default; lexical
-   MiniSearch remains available in the chat UI.
+   MiniSearch is still available in the chat UI.
 2. Keep the top semantic 3 or lexical 4 relevant handbook chunks as evidence.
 3. Add the retrieved handbook evidence to the prompt.
-4. Call the fine-tuned `nfdlh/tensortalk-v2` model on RunPod through
+4. Call the fine-tuned `nfdlh/tensortalk-v2` model endpoint through
    `@ai-sdk/openai-compatible`.
 5. Stream model text back to the UI, returning `{ answer, evidence, mode }` and
    optional `thinking` when the model emits a `<think>` block. The latest answer
@@ -57,8 +57,8 @@ For the retrieval details, see `docs/rag.md`.
 
 ## Fine-tuned model
 
-The current deployed model is TensorTalk v2, a Stage 3 PPO fine-tune of Qwen3-8B
-for UM FSKTM handbook question answering.
+The served model is TensorTalk v2, a Stage 3 PPO fine-tune of Qwen3-8B for UM
+FSKTM handbook question answering.
 
 - Base model: Qwen3-8B
 - Fine-tuning stage: Stage 3 PPO
@@ -71,7 +71,7 @@ for UM FSKTM handbook question answering.
 
 The Hugging Face repo contains the merged/full inference model for vLLM:
 `model.safetensors`, tokenizer/config files, and small PPO proof artifacts. The
-RunPod template should serve the same model name that Vercel sends in
+hosted endpoint should serve the same model name that Vercel sends in
 `TENSORTALK_MODEL`.
 
 ## Run locally

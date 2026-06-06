@@ -1,12 +1,9 @@
 # TensorTalk RAG
 
-TensorTalk now has two retrieval implementations. The chat UI defaults to
-semantic vectors, and the original MiniSearch implementation remains selectable
-as the fast lexical path.
+TensorTalk has two retrieval implementations. The chat UI defaults to semantic
+vectors, and MiniSearch is still available as the fast lexical path.
 
 The shared data source is `data/UM_RAG_Knowledge_Base.jsonl`.
-
-![TensorTalk RAG flow](../public/tensortalk-rag-flow.png)
 
 ## Modes
 
@@ -26,7 +23,7 @@ flowchart LR
   Evidence --> Prompt
 ```
 
-## Semantic Vector Mode
+## Semantic vector mode
 
 Semantic mode mirrors the TensorTalk notebook retrieval design in a Next.js
 runtime-friendly way:
@@ -65,10 +62,10 @@ keyword bonus: 0.03
 scope mismatch prior: x0.92
 ```
 
-## Lexical Mode
+## Lexical mode
 
-Lexical mode is the original implementation. It reads the handbook JSONL from
-disk, builds a cached MiniSearch index, and selects evidence for the prompt.
+Lexical mode reads the handbook JSONL from disk, builds a cached MiniSearch
+index, and selects evidence for the prompt.
 
 MiniSearch indexes these fields:
 
@@ -122,9 +119,9 @@ Kept rows are rescored with exact question matches, grounded answer-bank hits,
 term hits, and direct-subject boosts before the top 4 lexical results are
 returned.
 
-## Prompt Handoff
+## Prompt handoff
 
 Both modes return the same evidence shape. The API route inserts the selected
-evidence into the model prompt with source document, scope, section, subsection,
-pages, and source text. The same evidence array is returned to the UI so the
-right panel can show the sections behind the latest answer.
+evidence into the hosted model prompt with source document, scope, section,
+subsection, pages, and source text. The same evidence array is returned to the
+UI so the right panel can show the sections behind the latest answer.

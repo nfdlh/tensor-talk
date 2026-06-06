@@ -1,6 +1,6 @@
 # TensorTalk architecture
 
-This document records the current app behavior from the source code.
+This document records the app behavior in this repo.
 
 ## Runtime flow
 
@@ -12,7 +12,7 @@ sequenceDiagram
   participant RAG as RAG selector
   participant Vectors as SQLite vector store
   participant KB as UM_RAG_Knowledge_Base.jsonl
-  participant Model as RunPod vLLM TensorTalk model
+  participant Model as Hosted TensorTalk model
 
   Student->>UI: Submit handbook question
   UI->>API: fetch("/api/chat", streamed message)
@@ -33,7 +33,7 @@ sequenceDiagram
 - `lib/chat-client.ts` sends browser requests to `/api/chat` with `fetch`,
   reads the NDJSON stream, and turns API errors into user-visible messages.
 - `app/api/chat/route.ts` validates the message and selected retrieval mode,
-  retrieves evidence, builds the prompt, streams the selected hosted model,
+  retrieves evidence, builds the prompt, streams the hosted TensorTalk model,
   separates `<think>` blocks into optional `thinking`, and returns
   `{ answer, evidence, mode, retrievalMode, thinking? }`.
 - `lib/rag.ts` supports two retrieval modes. Semantic mode embeds the query with
@@ -42,8 +42,8 @@ sequenceDiagram
   index over `data/UM_RAG_Knowledge_Base.jsonl`.
 - `scripts/build-rag-index.ts` builds `data/UM_RAG_Vectors.sqlite` from the
   handbook JSONL using OpenRouter embeddings.
-- `data/UM_RAG_Knowledge_Base.jsonl` is the local handbook knowledge base. It
-  currently contains 521 JSONL rows.
+- `data/UM_RAG_Knowledge_Base.jsonl` is the local handbook knowledge base. This
+  checkout contains 521 JSONL rows.
 
 For the retrieval scoring details, see `docs/rag.md`.
 
@@ -71,11 +71,11 @@ section, subsection, pages, and source text.
 
 ## Model path
 
-The current model paths are:
+The request paths are:
 
 ```text
-Semantic mode -> OpenRouter embeddings -> SQLite vectors -> RunPod Serverless -> vLLM -> nfdlh/tensortalk-v2
-Lexical mode -> MiniSearch -> RunPod Serverless -> vLLM -> nfdlh/tensortalk-v2
+Semantic mode -> OpenRouter embeddings -> SQLite vectors -> hosted TensorTalk endpoint -> nfdlh/tensortalk-v2
+Lexical mode -> MiniSearch -> hosted TensorTalk endpoint -> nfdlh/tensortalk-v2
 ```
 
 The API reads these variables:
@@ -88,9 +88,9 @@ OPENROUTER_API_KEY
 OPENROUTER_EMBEDDING_MODEL
 ```
 
-`TENSORTALK_MODEL` defaults to `nfdlh/tensortalk-v2`. `TENSORTALK_API_KEY` may also
-come from `HUGGINGFACE_API_KEY` or `HF_TOKEN`, but the intended production key is
-the RunPod API key.
+`TENSORTALK_MODEL` defaults to `nfdlh/tensortalk-v2`. `TENSORTALK_API_KEY` may
+also come from `HUGGINGFACE_API_KEY` or `HF_TOKEN`. For the configured RunPod
+setup, use the RunPod API key.
 
 `OPENROUTER_EMBEDDING_MODEL` defaults to `baai/bge-base-en-v1.5`.
 
@@ -111,10 +111,10 @@ tensortalk-endpoint:<model-name>
 
 ## Failure behavior
 
-There is no local answer fallback. If semantic mode is selected and the SQLite
-vector index is missing, `/api/chat` returns a setup error asking for
-`pnpm rag:index`. If lexical mode is selected and `TENSORTALK_API_BASE_URL` is
-missing, `/api/chat` returns a RunPod setup message. If a hosted model call
-fails before streaming starts, `/api/chat` returns a 502 response.
+If semantic mode is selected and the SQLite vector index is missing,
+`/api/chat` returns a setup error asking for `pnpm rag:index`. If
+`TENSORTALK_API_BASE_URL` is missing, either retrieval mode returns an endpoint
+setup message. If a hosted model call fails before streaming starts,
+`/api/chat` returns a 502 response.
 If a model call starts and then fails mid-stream, the API sends an NDJSON
 `error` event because the HTTP status has already been committed.

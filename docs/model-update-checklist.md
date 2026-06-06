@@ -4,7 +4,7 @@ Use this checklist when replacing or updating the TensorTalk model.
 
 ## 1. Prepare model files
 
-Confirm the model is a merged/full model, not just a LoRA adapter.
+Confirm the model is a full merged model, not a LoRA adapter.
 
 Required files:
 
@@ -17,11 +17,12 @@ tokenizer_config.json
 chat_template.jinja
 ```
 
-Sharded models are fine if the repo includes all shard files and `model.safetensors.index.json`.
+Sharded models are fine if the repo includes all shard files and
+`model.safetensors.index.json`.
 
 ## 2. Upload to Hugging Face
 
-Use a versioned repo when possible. The current production repo is
+Use a versioned repo when possible. The served model repo is
 `nfdlh/tensortalk-v2`; use the next version for a future replacement.
 
 ```bash
