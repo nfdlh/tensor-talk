@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useRef, useState } from "react";
 
 import {
   Accordion,
@@ -153,6 +153,8 @@ export function TensorTalkClient() {
   });
 
   const isDark = resolvedTheme === "dark";
+  const showInlinePrompts = message.length === 0 && !chatMutation.isPending;
+  const latestModels = latestTurn?.models ?? [];
 
   function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -188,6 +190,22 @@ export function TensorTalkClient() {
 
   function selectPrompt(prompt: string) {
     setMessage(prompt);
+    window.requestAnimationFrame(() => questionInputRef.current?.focus());
+  }
+
+  function handleQuestionKeyDown(
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   }
 
   return (
@@ -200,11 +218,16 @@ export function TensorTalkClient() {
             : "lg:grid-cols-[260px_minmax(0,1fr)_360px]",
         )}
       >
-        <Card className="lg:min-h-[calc(100dvh-2rem)]">
-          <CardHeader className={cn(sidebarCollapsed && "items-center px-2")}>
+        <Card className="max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:py-3 lg:min-h-[calc(100dvh-2rem)]">
+          <CardHeader
+            className={cn(
+              "max-lg:px-3",
+              sidebarCollapsed && "items-center px-2",
+            )}
+          >
             <div
               className={cn(
-                "flex gap-3",
+                "flex gap-3 max-lg:items-center max-lg:justify-between",
                 sidebarCollapsed
                   ? "flex-col items-center"
                   : "items-start justify-between",
@@ -241,6 +264,7 @@ export function TensorTalkClient() {
                   type="button"
                   variant="outline"
                   size="icon"
+                  className="hidden lg:inline-flex"
                   aria-label={
                     sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
                   }
@@ -269,7 +293,7 @@ export function TensorTalkClient() {
             </div>
           </CardHeader>
           {sidebarCollapsed ? (
-            <CardContent className="flex flex-col items-center gap-4 px-2">
+            <CardContent className="flex flex-col items-center gap-4 px-2 max-lg:flex-row max-lg:px-3 max-lg:pb-0">
               <Badge
                 variant="success"
                 className="size-8 justify-center px-0"
@@ -278,10 +302,19 @@ export function TensorTalkClient() {
               >
                 <CheckCircle2Icon />
               </Badge>
+              {latestModels.map((model) => (
+                <Badge
+                  key={`${model.role}-${model.name}`}
+                  variant="outline"
+                  className="hidden max-lg:inline-flex"
+                >
+                  {getModelLabel(model)}
+                </Badge>
+              ))}
 
-              <Separator />
+              <Separator className="max-lg:hidden" />
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 max-lg:hidden">
                 {SOURCE_AREAS.map((area) => (
                   <div
                     key={area}
@@ -293,27 +326,9 @@ export function TensorTalkClient() {
                   </div>
                 ))}
               </div>
-
-              <Separator />
-
-              <div className="flex flex-col gap-2">
-                {QUICK_PROMPTS.map((prompt) => (
-                  <Button
-                    key={prompt}
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    title={prompt}
-                    aria-label={prompt}
-                    onClick={() => selectPrompt(prompt)}
-                  >
-                    <MessageSquareTextIcon />
-                  </Button>
-                ))}
-              </div>
             </CardContent>
           ) : (
-            <CardContent className="flex flex-col gap-5">
+            <CardContent className="flex flex-col gap-5 max-lg:px-3 max-lg:pb-3">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="success">
                   <CheckCircle2Icon data-icon="inline-start" />
@@ -324,11 +339,16 @@ export function TensorTalkClient() {
                     ? "Semantic vectors"
                     : "Fast lexical"}
                 </Badge>
+                {latestModels.map((model) => (
+                  <Badge key={`${model.role}-${model.name}`} variant="outline">
+                    {getModelLabel(model)}
+                  </Badge>
+                ))}
               </div>
 
-              <Separator />
+              <Separator className="max-lg:hidden" />
 
-              <section className="flex flex-col gap-2">
+              <section className="flex flex-col gap-2 max-lg:hidden">
                 <p className="text-xs font-medium text-muted-foreground">
                   Sources
                 </p>
@@ -341,29 +361,6 @@ export function TensorTalkClient() {
                       <LibraryIcon className="size-4" />
                       {area}
                     </div>
-                  ))}
-                </div>
-              </section>
-
-              <Separator />
-
-              <section className="flex flex-col gap-2">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Quick prompts
-                </p>
-                <div className="flex flex-col gap-2">
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <Button
-                      key={prompt}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-auto w-full justify-start whitespace-normal py-2 text-left"
-                      onClick={() => selectPrompt(prompt)}
-                    >
-                      <MessageSquareTextIcon data-icon="inline-start" />
-                      {prompt}
-                    </Button>
                   ))}
                 </div>
               </section>
@@ -380,6 +377,23 @@ export function TensorTalkClient() {
               <form onSubmit={submitQuestion}>
                 <FieldGroup>
                   <Field>
+                    {showInlinePrompts ? (
+                      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                        {QUICK_PROMPTS.map((prompt) => (
+                          <Button
+                            key={prompt}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-auto max-w-72 justify-start whitespace-normal py-2 text-left"
+                            onClick={() => selectPrompt(prompt)}
+                          >
+                            <MessageSquareTextIcon data-icon="inline-start" />
+                            {prompt}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
                     <FieldLabel htmlFor="question">Question</FieldLabel>
                     <InputGroup className="min-h-32 items-stretch">
                       <InputGroupTextarea
@@ -387,6 +401,7 @@ export function TensorTalkClient() {
                         ref={questionInputRef}
                         value={message}
                         onChange={(event) => setMessage(event.target.value)}
+                        onKeyDown={handleQuestionKeyDown}
                         placeholder="Ask about programme requirements, academic rules, facilities, thesis submission, or industrial training."
                         disabled={chatMutation.isPending}
                       />
@@ -530,6 +545,11 @@ export function TensorTalkClient() {
                               {turn.retrievalMode === "semantic"
                                 ? "Semantic vectors"
                                 : "Fast lexical"}
+                            </p>
+                          ) : null}
+                          {turn.models?.length ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {turn.models.map(getModelLabel).join(" / ")}
                             </p>
                           ) : null}
                           <div
@@ -791,6 +811,10 @@ function scrollToEvidence(kbId: string) {
       .getElementById(getEvidenceId(kbId))
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   });
+}
+
+function getModelLabel(model: NonNullable<ChatResponse["models"]>[number]) {
+  return `${model.role === "embedding" ? "Embedding" : "Chat"}: ${model.name}`;
 }
 
 function getErrorMessage(error: Error | null) {

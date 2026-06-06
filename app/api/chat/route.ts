@@ -8,6 +8,7 @@ import {
   type ChatStreamEvent,
   type RetrievalMode,
 } from "@/lib/chat";
+import { getOpenRouterEmbeddingModel } from "@/lib/openrouter";
 import { retrieveContext } from "@/lib/rag";
 
 export const runtime = "nodejs";
@@ -102,6 +103,13 @@ async function createFineTunedModelStream(
     process.env.HUGGINGFACE_API_KEY ??
     process.env.HF_TOKEN;
   const modelName = process.env.TENSORTALK_MODEL ?? DEFAULT_TENSORTALK_MODEL;
+  const models: ChatResponse["models"] =
+    retrievalMode === "semantic"
+      ? [
+          { role: "embedding", name: getOpenRouterEmbeddingModel() },
+          { role: "chat", name: modelName },
+        ]
+      : [{ role: "chat", name: modelName }];
 
   if (!baseURL) {
     throw new Error("Missing TENSORTALK_API_BASE_URL.");
@@ -121,7 +129,7 @@ async function createFineTunedModelStream(
     maxRetries: 1,
   });
   const mode = `tensortalk-endpoint:${modelName}`;
-  return createStreamResponse(result, evidence, mode, retrievalMode);
+  return createStreamResponse(result, evidence, mode, retrievalMode, models);
 }
 
 async function createStreamResponse(
@@ -129,6 +137,7 @@ async function createStreamResponse(
   evidence: Awaited<ReturnType<typeof retrieveContext>>,
   mode: string,
   retrievalMode: RetrievalMode,
+  models: ChatResponse["models"],
 ) {
   const encoder = new TextEncoder();
   const iterator = result.textStream[Symbol.asyncIterator]();
@@ -147,7 +156,7 @@ async function createStreamResponse(
       }
 
       try {
-        write({ type: "metadata", evidence, mode, retrievalMode });
+        write({ type: "metadata", evidence, mode, retrievalMode, models });
         rawText += firstChunk.value;
         write({ type: "text", text: firstChunk.value });
 
@@ -175,6 +184,7 @@ async function createStreamResponse(
           answer: finalAnswer,
           evidence,
           mode,
+          models,
           retrievalMode,
           ...(thinking ? { thinking } : {}),
         };

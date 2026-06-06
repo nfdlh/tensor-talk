@@ -50,6 +50,7 @@ export async function sendChatMessage(
         onUpdate?.({
           evidence: event.evidence,
           mode: event.mode,
+          models: event.models,
           retrievalMode: event.retrievalMode,
         });
         continue;

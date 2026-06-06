@@ -19,6 +19,10 @@ export type ChatResponse = {
   answer: string;
   evidence: Evidence[];
   mode: string;
+  models?: Array<{
+    role: "embedding" | "chat";
+    name: string;
+  }>;
   retrievalMode?: RetrievalMode;
   thinking?: string;
 };
@@ -28,6 +32,7 @@ export type ChatStreamEvent =
       type: "metadata";
       evidence: Evidence[];
       mode: string;
+      models?: ChatResponse["models"];
       retrievalMode?: RetrievalMode;
     }
   | {
