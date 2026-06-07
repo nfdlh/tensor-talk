@@ -3,6 +3,8 @@ const EMBEDDING_TIMEOUT_MS = 30_000;
 
 export const DEFAULT_OPENROUTER_EMBEDDING_MODEL = "baai/bge-base-en-v1.5";
 export const DEFAULT_OPENROUTER_HARNESS_MODEL = "qwen/qwen3-8b";
+export const DEFAULT_OPENROUTER_TRANSCRIPTION_MODEL =
+  "openai/gpt-4o-mini-transcribe";
 
 type OpenRouterEmbeddingResponse = {
   data?: Array<{
@@ -19,13 +21,21 @@ export function getOpenRouterApiKey() {
 
 export function getOpenRouterEmbeddingModel() {
   return (
-    process.env.OPENROUTER_EMBEDDING_MODEL ??
-    DEFAULT_OPENROUTER_EMBEDDING_MODEL
+    process.env.OPENROUTER_EMBEDDING_MODEL ?? DEFAULT_OPENROUTER_EMBEDDING_MODEL
   );
 }
 
 export function getOpenRouterHarnessModel() {
-  return process.env.OPENROUTER_HARNESS_MODEL ?? DEFAULT_OPENROUTER_HARNESS_MODEL;
+  return (
+    process.env.OPENROUTER_HARNESS_MODEL ?? DEFAULT_OPENROUTER_HARNESS_MODEL
+  );
+}
+
+export function getOpenRouterTranscriptionModel() {
+  return (
+    process.env.OPENROUTER_TRANSCRIPTION_MODEL ??
+    DEFAULT_OPENROUTER_TRANSCRIPTION_MODEL
+  );
 }
 
 export function getOpenRouterBaseUrl() {
@@ -58,9 +68,9 @@ export async function createOpenRouterEmbeddings(input: string | string[]) {
 
     throw error;
   });
-  const body = (await response.json().catch(() => null)) as
-    | OpenRouterEmbeddingResponse
-    | null;
+  const body = (await response
+    .json()
+    .catch(() => null)) as OpenRouterEmbeddingResponse | null;
 
   if (!response.ok) {
     throw new Error(

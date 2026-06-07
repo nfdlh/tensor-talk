@@ -12,7 +12,7 @@ Model served: nfdlh/tensortalk-v2
 Workers min: 0
 Workers max: 2
 GPU candidates: NVIDIA RTX A5000, NVIDIA L4, NVIDIA GeForce RTX 3090
-Endpoint version: 2
+Endpoint version: 3
 ```
 
 `workersMin=0` keeps cost lower because the endpoint scales to zero when idle.
@@ -32,7 +32,7 @@ Important template environment variables:
 ```text
 MODEL_NAME=nfdlh/tensortalk-v2
 OPENAI_SERVED_MODEL_NAME_OVERRIDE=nfdlh/tensortalk-v2
-MAX_MODEL_LEN=4096
+MAX_MODEL_LEN=8192
 MAX_NUM_SEQS=1
 GPU_MEMORY_UTILIZATION=0.90
 DTYPE=bfloat16

@@ -158,7 +158,7 @@ facts remain, the API runs one repair pass and keeps the repair only when it
 improves support.
 
 Thread history is bounded by `lib/context-budget.ts`. The live RunPod endpoint
-is treated as a 4096-token context window, output tokens are reserved, evidence
+is treated as an 8192-token context window, output tokens are reserved, evidence
 and prompt overhead are counted, and newer turns are prioritized. The API
 returns context metadata so the UI can show usage and truncation state.
 

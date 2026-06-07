@@ -68,7 +68,7 @@ The request flow is:
    evidence, trace, grounding, mode, and bounded optional `thinking` when the
    model emits a `<think>` block.
 9. Add bounded thread history for follow-up questions. TensorTalk treats the
-   live RunPod context window as 4096 tokens, reserves output space, includes
+   live RunPod context window as 8192 tokens, reserves output space, includes
    newer turns first, and reports included/omitted history plus estimated usage.
 
 Semantic mode uses OpenRouter `baai/bge-base-en-v1.5` embeddings and the
@@ -122,12 +122,13 @@ Then fill `TENSORTALK_API_KEY` in `.env.local`. The file is gitignored.
 `TENSORTALK_MAX_THINKING_TOKENS` caps visible/runaway `<think>` output before
 TensorTalk requests a concise final answer.
 
-For semantic mode, also fill:
+For semantic mode, OpenRouter harness planning, and voice input, also fill:
 
 ```text
 OPENROUTER_API_KEY=
 OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
 OPENROUTER_HARNESS_MODEL=qwen/qwen3-8b
+OPENROUTER_TRANSCRIPTION_MODEL=openai/gpt-4o-mini-transcribe
 ```
 
 Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to build the SQLite
@@ -135,6 +136,8 @@ vector store.
 
 `OPENROUTER_HARNESS_MODEL` is used only when the UI harness selector is set to
 OpenRouter Qwen. It does not replace the final TensorTalk answer model.
+Voice input also uses `OPENROUTER_API_KEY` through the server transcription
+route. `OPENROUTER_TRANSCRIPTION_MODEL` is optional.
 
 For official web search and automatic thread titles, fill:
 

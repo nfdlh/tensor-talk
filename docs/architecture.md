@@ -58,7 +58,7 @@ sequenceDiagram
   scoring guards.
 - `lib/grounding.ts` checks exact fact support and decides whether the one-pass
   repair should replace the draft answer.
-- `lib/context-budget.ts` keeps prompts under the live RunPod 4096-token
+- `lib/context-budget.ts` keeps prompts under the live RunPod 8192-token
   context window by reserving output space and prioritizing newer thread turns.
 - `lib/thread-store.ts` stores browser-local thread metadata in IndexedDB while
   compacting evidence text and never storing secrets.
@@ -87,7 +87,7 @@ filter so unrelated prompts do not receive arbitrary handbook rows.
 The API asks for 3 semantic evidence chunks or 4 lexical evidence chunks:
 
 ```ts
-retrieveContext(message, retrievalMode === "semantic" ? 3 : 4, retrievalMode)
+retrieveContext(message, retrievalMode === "semantic" ? 3 : 4, retrievalMode);
 ```
 
 Those chunks are eligible for the prompt only after route-specific checks. Web

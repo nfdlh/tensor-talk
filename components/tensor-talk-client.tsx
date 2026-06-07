@@ -12,6 +12,7 @@ import {
   Globe2Icon,
   LibraryIcon,
   LoaderCircleIcon,
+  MicIcon,
   MoonIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -63,11 +64,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   InputGroup,
   InputGroupAddon,
@@ -126,18 +123,25 @@ const EMPTY_STAGES: ChatStage[] = [
 ];
 
 const COPY_FEEDBACK_MS = 1600;
-const CLIENT_MAX_CONTEXT_TOKENS = 4096;
+const CLIENT_MAX_CONTEXT_TOKENS = 8192;
 const CLIENT_DEFAULT_OUTPUT_TOKENS = 640;
 const CLIENT_MORE_OUTPUT_TOKENS = 1024;
+const VOICE_INPUT_MIME_TYPES = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg;codecs=opus",
+  "audio/ogg",
+];
+
+type VoiceStatus = "idle" | "recording" | "transcribing";
 
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
-  const [retrievalMode, setRetrievalMode] =
-    useState<RetrievalMode>("semantic");
+  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("semantic");
   const [webMode, setWebMode] = useState<WebMode>("auto");
   const [harnessMode, setHarnessMode] = useState<HarnessMode>("tensortalk");
-  const [thinkingMode, setThinkingMode] =
-    useState<ThinkingMode>("limited");
+  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>("limited");
   const [threads, setThreads] = useState<StoredThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string>("");
   const [selectedTurnId, setSelectedTurnId] = useState<string>("");
@@ -147,11 +151,17 @@ export function TensorTalkClient() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
   const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [copiedMessageKey, setCopiedMessageKey] = useState<string>("");
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const latestAnswerEndRef = useRef<HTMLDivElement>(null);
   const activeRequestRef = useRef<AbortController | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStatusRef = useRef<VoiceStatus>("idle");
+  const voiceStopRequestedRef = useRef(false);
+  const voiceStartedByKeyboardRef = useRef(false);
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -167,6 +177,9 @@ export function TensorTalkClient() {
   const latestTurn = activeThread?.turns.at(-1);
   const isPending = Boolean(pendingTurnId);
   const isDark = resolvedTheme === "dark";
+  const voiceBlocked =
+    voiceStatus === "transcribing" ||
+    (isPending && voiceStatus !== "recording");
   const composerContext = createDraftContextMetadata(
     message,
     thinkingMode,
@@ -211,12 +224,47 @@ export function TensorTalkClient() {
   useEffect(() => {
     return () => {
       activeRequestRef.current?.abort();
+      stopRecordingTracks(mediaRecorderRef.current);
 
       if (copyFeedbackTimeoutRef.current) {
         clearTimeout(copyFeedbackTimeoutRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    voiceStatusRef.current = voiceStatus;
+  }, [voiceStatus]);
+
+  useEffect(() => {
+    function handleFnKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Fn" || event.repeat || isPending) {
+        return;
+      }
+
+      event.preventDefault();
+      voiceStartedByKeyboardRef.current = true;
+      void startVoiceInput();
+    }
+
+    function handleFnKeyUp(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Fn" || !voiceStartedByKeyboardRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      voiceStartedByKeyboardRef.current = false;
+      stopVoiceInput();
+    }
+
+    window.addEventListener("keydown", handleFnKeyDown);
+    window.addEventListener("keyup", handleFnKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleFnKeyDown);
+      window.removeEventListener("keyup", handleFnKeyUp);
+    };
+  });
 
   function updateActiveThread(
     updater: (thread: StoredThread) => StoredThread,
@@ -239,7 +287,9 @@ export function TensorTalkClient() {
         return nextActiveThread;
       });
 
-      return nextThreads.sort((left, right) => right.updatedAt - left.updatedAt);
+      return nextThreads.sort(
+        (left, right) => right.updatedAt - left.updatedAt,
+      );
     });
 
     if (shouldPersist) {
@@ -308,7 +358,9 @@ export function TensorTalkClient() {
       ...thread,
       selectedTurnId: turnId,
       turns: retryTurnId
-        ? thread.turns.map((turn) => (turn.id === retryTurnId ? draftTurn : turn))
+        ? thread.turns.map((turn) =>
+            turn.id === retryTurnId ? draftTurn : turn,
+          )
         : [...thread.turns, draftTurn],
     }));
 
@@ -486,6 +538,183 @@ export function TensorTalkClient() {
       });
   }
 
+  function removeAllThreads() {
+    if (threads.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm("Delete all threads?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    const thread = createThread();
+    const deletedThreadIds = threads.map((item) => item.id);
+
+    setThreads([thread]);
+    setActiveThreadId(thread.id);
+    setSelectedTurnId("");
+    setOpenEvidenceIds([]);
+    setMessage("");
+
+    void Promise.all([
+      ...deletedThreadIds.map((threadId) => deleteThread(threadId)),
+      saveThread(thread),
+    ])
+      .then(() => {
+        toast.success("All threads deleted.");
+      })
+      .catch(() => {
+        toast.error("Could not delete all threads.");
+      });
+  }
+
+  async function startVoiceInput() {
+    if (voiceStatusRef.current !== "idle" || isPending) {
+      return;
+    }
+
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined"
+    ) {
+      toast.error("Voice input is not available in this browser.");
+      return;
+    }
+
+    voiceStopRequestedRef.current = false;
+    voiceStatusRef.current = "recording";
+    setVoiceStatus("recording");
+
+    let stream: MediaStream | null = null;
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedVoiceMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onerror = () => {
+        stopRecordingTracks(recorder);
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+        voiceStatusRef.current = "idle";
+        setVoiceStatus("idle");
+        toast.error("Voice input stopped unexpectedly.");
+      };
+      recorder.onstop = () => {
+        const chunks = audioChunksRef.current;
+        const audio = new Blob(chunks, {
+          type: recorder.mimeType || "audio/webm",
+        });
+
+        stopRecordingTracks(recorder);
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+
+        if (audio.size === 0) {
+          voiceStatusRef.current = "idle";
+          setVoiceStatus("idle");
+          return;
+        }
+
+        void transcribeVoiceInput(audio);
+      };
+
+      recorder.start();
+
+      if (voiceStopRequestedRef.current) {
+        setVoiceStatus("transcribing");
+        recorder.stop();
+      }
+    } catch (error) {
+      stream?.getTracks().forEach((track) => {
+        track.stop();
+      });
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      voiceStatusRef.current = "idle";
+      setVoiceStatus("idle");
+      toast.error(
+        error instanceof Error && error.name === "NotAllowedError"
+          ? "Microphone permission was denied."
+          : "Could not start voice input.",
+      );
+    }
+  }
+
+  function stopVoiceInput() {
+    const recorder = mediaRecorderRef.current;
+
+    if (!recorder || recorder.state === "inactive") {
+      if (voiceStatusRef.current === "recording") {
+        voiceStopRequestedRef.current = true;
+      }
+      return;
+    }
+
+    voiceStopRequestedRef.current = true;
+    voiceStatusRef.current = "transcribing";
+    setVoiceStatus("transcribing");
+    recorder.stop();
+  }
+
+  async function transcribeVoiceInput(audio: Blob) {
+    try {
+      const formData = new FormData();
+
+      formData.append(
+        "audio",
+        audio,
+        `question.${getAudioFileExtension(audio.type)}`,
+      );
+
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+      const body = (await response.json().catch(() => null)) as {
+        text?: string;
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Could not transcribe voice input.");
+      }
+
+      const transcript = body?.text?.trim() ?? "";
+
+      if (!transcript) {
+        throw new Error("Voice input was empty.");
+      }
+
+      setMessage((current) =>
+        current.trim() ? `${current.trimEnd()} ${transcript}` : transcript,
+      );
+      questionInputRef.current?.focus();
+      toast.success("Voice added to question.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not transcribe voice input.",
+      );
+    } finally {
+      voiceStatusRef.current = "idle";
+      setVoiceStatus("idle");
+    }
+  }
+
   function retryTurn(turn: StoredTurn) {
     if (isPending) {
       return;
@@ -523,9 +752,7 @@ export function TensorTalkClient() {
     }
   }
 
-  function handleQuestionKeyDown(
-    event: KeyboardEvent<HTMLTextAreaElement>,
-  ) {
+  function handleQuestionKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (isPending) {
       return;
     }
@@ -718,9 +945,22 @@ export function TensorTalkClient() {
                 sidebarCollapsed ? "hidden" : "flex",
               )}
             >
-              <p className="text-xs font-medium text-muted-foreground">
-                Threads
-              </p>
+              <div className="group/thread-heading flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Threads
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 opacity-0 transition-opacity group-hover/thread-heading:opacity-100 focus-visible:opacity-100"
+                  aria-label="Delete all threads"
+                  title="Delete all threads"
+                  onClick={removeAllThreads}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
+              </div>
               {loadError ? (
                 <p className="rounded-md border px-2 py-1.5 text-xs text-muted-foreground">
                   {loadError}
@@ -835,8 +1075,7 @@ export function TensorTalkClient() {
                       <div
                         className={cn(
                           "group/answer box-border w-full max-w-[88%] rounded-lg border bg-card p-4",
-                          selectedTurn?.id === turn.id &&
-                            "ring-2 ring-ring/30",
+                          selectedTurn?.id === turn.id && "ring-2 ring-ring/30",
                         )}
                       >
                         <div className="mb-3 flex items-start justify-between gap-3">
@@ -907,7 +1146,10 @@ export function TensorTalkClient() {
                         />
 
                         {turn.streaming && turn.answer ? (
-                          <TracingSteps compact stages={turn.stages ?? EMPTY_STAGES} />
+                          <TracingSteps
+                            compact
+                            stages={turn.stages ?? EMPTY_STAGES}
+                          />
                         ) : null}
 
                         <EvidenceLinks
@@ -1006,18 +1248,84 @@ export function TensorTalkClient() {
                             value={message}
                             onChange={(event) => setMessage(event.target.value)}
                             onKeyDown={handleQuestionKeyDown}
-                          placeholder="Ask about rules, facilities, contacts, or official pages."
+                            placeholder="Ask about rules, facilities, contacts, or official pages."
                             className={cn(
                               "min-h-24 pb-12",
-                              composerContext ? "pr-44" : "pr-14",
+                              composerContext ? "pr-36" : "pr-24",
                             )}
                           />
+                          {voiceStatus !== "idle" ? (
+                            <div
+                              aria-live="polite"
+                              className="pointer-events-none absolute bottom-3 left-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-full border bg-background/95 px-2.5 text-xs font-medium text-muted-foreground shadow-sm"
+                            >
+                              {voiceStatus === "recording" ? (
+                                <MicIcon className="size-3.5 animate-pulse text-destructive" />
+                              ) : (
+                                <LoaderCircleIcon className="size-3.5 animate-spin" />
+                              )}
+                              <span>
+                                {voiceStatus === "recording"
+                                  ? "Listening..."
+                                  : "Transcribing..."}
+                              </span>
+                            </div>
+                          ) : null}
                           <div className="absolute right-3 bottom-3 z-10 flex items-center gap-2">
                             <ContextIndicator
                               context={composerContext}
                               open={contextDetailsOpen}
                               onOpenChange={setContextDetailsOpen}
                             />
+                            <InputGroupButton
+                              type="button"
+                              variant="outline"
+                              size="icon-sm"
+                              className={cn(
+                                "size-9 rounded-full bg-background/95 p-0 shadow-sm",
+                                voiceStatus === "recording" &&
+                                  "border-destructive text-destructive",
+                              )}
+                              aria-label={
+                                voiceStatus === "recording"
+                                  ? "Stop and transcribe voice"
+                                  : voiceStatus === "transcribing"
+                                    ? "Transcribing voice"
+                                    : "Start voice input"
+                              }
+                              title={
+                                voiceStatus === "recording"
+                                  ? "Stop and transcribe voice"
+                                  : voiceStatus === "transcribing"
+                                    ? "Transcribing voice"
+                                    : "Start voice input"
+                              }
+                              disabled={voiceBlocked}
+                              onClick={() => {
+                                if (voiceStatus === "recording") {
+                                  stopVoiceInput();
+                                  return;
+                                }
+
+                                if (voiceBlocked) {
+                                  return;
+                                }
+
+                                void startVoiceInput();
+                              }}
+                            >
+                              {voiceStatus === "transcribing" ? (
+                                <LoaderCircleIcon className="size-4 animate-spin" />
+                              ) : (
+                                <MicIcon
+                                  className={cn(
+                                    "size-4",
+                                    voiceStatus === "recording" &&
+                                      "animate-pulse",
+                                  )}
+                                />
+                              )}
+                            </InputGroupButton>
                             <InputGroupButton
                               type={isPending ? "button" : "submit"}
                               variant="default"
@@ -1029,7 +1337,9 @@ export function TensorTalkClient() {
                               )}
                               aria-label={isPending ? "Stop response" : "Ask"}
                               title={isPending ? "Stop response" : "Ask"}
-                              onClick={isPending ? stopCurrentResponse : undefined}
+                              onClick={
+                                isPending ? stopCurrentResponse : undefined
+                              }
                             >
                               {isPending ? (
                                 <SquareIcon className="size-3 fill-current" />
@@ -1068,8 +1378,12 @@ export function TensorTalkClient() {
                                 </SelectTrigger>
                                 <SelectContent align="start">
                                   <SelectGroup>
-                                    <SelectItem value="semantic">Semantic</SelectItem>
-                                    <SelectItem value="lexical">Lexical</SelectItem>
+                                    <SelectItem value="semantic">
+                                      Semantic
+                                    </SelectItem>
+                                    <SelectItem value="lexical">
+                                      Lexical
+                                    </SelectItem>
                                     <SelectItem value="none">No RAG</SelectItem>
                                   </SelectGroup>
                                 </SelectContent>
@@ -1252,7 +1566,9 @@ function AnswerMarkdown({ content }: { content: string }) {
           ),
           p: ({ children }) => <p>{children}</p>,
           strong: ({ children }) => (
-            <strong className="font-semibold text-foreground">{children}</strong>
+            <strong className="font-semibold text-foreground">
+              {children}
+            </strong>
           ),
           em: ({ children }) => <em className="italic">{children}</em>,
           a: ({ children, href }) => (
@@ -1466,7 +1782,9 @@ function ContextIndicator({
     `Reserved output: ${context.reservedOutputTokens} tokens`,
     `Included history: ${context.includedHistoryCount}`,
     `Omitted history: ${context.omittedHistoryCount}`,
-    context.contextTruncated ? "Older context was omitted." : "No history omitted.",
+    context.contextTruncated
+      ? "Older context was omitted."
+      : "No history omitted.",
   ].join("\n");
 
   return (
@@ -1493,9 +1811,13 @@ function ContextIndicator({
         >
           <span className="size-2 rounded-full bg-card" />
         </span>
-        Context {usage}%
       </PopoverTrigger>
-      <PopoverContent side="top" align="end" sideOffset={8} className="w-64 p-3 text-xs">
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="w-64 p-3 text-xs"
+      >
         <PopoverHeader className="gap-0.5">
           <PopoverTitle>Context Window</PopoverTitle>
           <PopoverDescription>
@@ -1520,7 +1842,7 @@ function ContextIndicator({
         </dl>
         {context.contextTruncated ? (
           <p className="text-destructive">
-            Older context was omitted to stay under 4096 tokens.
+            Older context was omitted to stay under 8192 tokens.
           </p>
         ) : null}
       </PopoverContent>
@@ -1614,11 +1936,12 @@ function ThinkingBlock({
   return (
     <details
       open={open}
-      className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+      className="group/details mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm"
     >
-      <summary className="flex cursor-pointer items-center gap-2 font-medium text-muted-foreground">
+      <summary className="flex cursor-pointer items-center gap-2 font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
         <BrainCircuitIcon className="size-4" />
         Model thinking
+        <ChevronDownIcon className="ml-auto size-4 transition-transform group-open/details:rotate-180" />
       </summary>
       <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 font-sans text-muted-foreground [overflow-wrap:anywhere]">
         {thinking}
@@ -1813,7 +2136,10 @@ function TracePanel({
           <section className="rounded-md border p-3">
             <h3 className="mb-2 text-sm font-semibold">Planner</h3>
             <dl className="grid gap-2 text-sm">
-              <TraceRow label="Decision" value={trace.planner.needWeb ? "Web" : "No web"} />
+              <TraceRow
+                label="Decision"
+                value={trace.planner.needWeb ? "Web" : "No web"}
+              />
               <TraceRow label="Source" value={trace.planner.source} />
               <TraceRow label="Reason" value={trace.planner.reason} />
               <TraceRow
@@ -1824,7 +2150,10 @@ function TracePanel({
           </section>
         ) : null}
         <TraceUrlList title="Searched URLs" urls={trace.searchedUrls} />
-        <TraceEvidenceList title="Accepted evidence" evidence={trace.acceptedEvidence} />
+        <TraceEvidenceList
+          title="Accepted evidence"
+          evidence={trace.acceptedEvidence}
+        />
         <RejectedEvidenceList rejected={trace.rejectedEvidence} />
         {trace.grounding ? (
           <section className="rounded-md border p-3">
@@ -1838,9 +2167,7 @@ function TracePanel({
               <TraceRow label="Reason" value={trace.grounding.reason} />
               <TraceRow
                 label="Unsupported"
-                value={
-                  trace.grounding.unsupportedFacts.join(", ") || "none"
-                }
+                value={trace.grounding.unsupportedFacts.join(", ") || "none"}
               />
             </dl>
           </section>
@@ -1855,9 +2182,13 @@ function TraceSummary({ trace }: { trace: ChatTrace }) {
     <section className="rounded-md border p-3">
       <h3 className="mb-2 text-sm font-semibold">Route</h3>
       <div className="flex flex-wrap gap-2">
-        <Badge variant="outline">{getRetrievalLabel(trace.route.retrievalMode)}</Badge>
+        <Badge variant="outline">
+          {getRetrievalLabel(trace.route.retrievalMode)}
+        </Badge>
         <Badge variant="outline">{getWebLabel(trace.route.webMode)}</Badge>
-        <Badge variant="outline">{getHarnessLabel(trace.route.harnessMode)}</Badge>
+        <Badge variant="outline">
+          {getHarnessLabel(trace.route.harnessMode)}
+        </Badge>
         <Badge variant="outline">
           Thinking {getThinkingLabel(trace.route.thinkingMode)}
         </Badge>
@@ -1937,7 +2268,9 @@ function RejectedEvidenceList({
       <div className="flex flex-col gap-2">
         {rejected.map((item) => (
           <div key={`${item.reason}-${item.url}`} className="text-sm">
-            <div className="font-medium">{item.title ?? item.domain ?? item.url}</div>
+            <div className="font-medium">
+              {item.title ?? item.domain ?? item.url}
+            </div>
             <span className="text-muted-foreground [overflow-wrap:anywhere]">
               {item.url}
             </span>
@@ -2046,10 +2379,7 @@ function stripThinkingForContext(answer: string) {
   return answer.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
 }
 
-function buildHistoryForRequest(
-  thread: StoredThread,
-  retryTurnId?: string,
-) {
+function buildHistoryForRequest(thread: StoredThread, retryTurnId?: string) {
   const retryIndex = retryTurnId
     ? thread.turns.findIndex((turn) => turn.id === retryTurnId)
     : -1;
@@ -2134,7 +2464,9 @@ function getWebLabel(mode?: WebMode) {
 }
 
 function getHarnessLabel(mode?: HarnessMode) {
-  return mode === "openrouter" ? "OpenRouter Qwen harness" : "TensorTalk harness";
+  return mode === "openrouter"
+    ? "OpenRouter Qwen harness"
+    : "TensorTalk harness";
 }
 
 function getHarnessShortLabel(mode?: HarnessMode) {
@@ -2151,6 +2483,38 @@ function getThinkingLabel(mode?: ThinkingMode) {
   }
 
   return "Limited";
+}
+
+function getSupportedVoiceMimeType() {
+  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) {
+    return "";
+  }
+
+  return (
+    VOICE_INPUT_MIME_TYPES.find((mimeType) =>
+      MediaRecorder.isTypeSupported(mimeType),
+    ) ?? ""
+  );
+}
+
+function getAudioFileExtension(mimeType: string) {
+  const cleanMime = mimeType.split(";")[0]?.toLowerCase();
+
+  if (cleanMime === "audio/mpeg") {
+    return "mp3";
+  }
+
+  if (cleanMime === "audio/mp4") {
+    return "m4a";
+  }
+
+  return cleanMime?.replace("audio/", "") || "webm";
+}
+
+function stopRecordingTracks(recorder: MediaRecorder | null) {
+  recorder?.stream.getTracks().forEach((track) => {
+    track.stop();
+  });
 }
 
 async function writeClipboardText(text: string) {

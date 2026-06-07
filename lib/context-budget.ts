@@ -1,6 +1,6 @@
 import type { ChatContextMetadata, ChatHistoryTurn } from "@/lib/chat";
 
-export const MAX_CONTEXT_TOKENS = 4096;
+export const MAX_CONTEXT_TOKENS = 8192;
 export const RESERVED_OUTPUT_TOKENS = 768;
 export const INPUT_TOKEN_BUDGET = getInputTokenBudget(RESERVED_OUTPUT_TOKENS);
 export const EMPTY_HISTORY_BLOCK = "";
@@ -67,8 +67,7 @@ export function createContextMetadata(
     estimatedContextUsagePercent: Math.min(
       100,
       Math.round(
-        ((estimatedInputTokens + reservedOutputTokens) /
-          MAX_CONTEXT_TOKENS) *
+        ((estimatedInputTokens + reservedOutputTokens) / MAX_CONTEXT_TOKENS) *
           100,
       ),
     ),
@@ -94,9 +93,10 @@ function compactHistoryTurn(turn: ChatHistoryTurn): ChatHistoryTurn {
 }
 
 function formatHistoryTurn(turn: ChatHistoryTurn) {
-  return [`Previous question: ${turn.question}`, `Previous answer: ${turn.answer}`].join(
-    "\n",
-  );
+  return [
+    `Previous question: ${turn.question}`,
+    `Previous answer: ${turn.answer}`,
+  ].join("\n");
 }
 
 function stripThinking(answer: string) {

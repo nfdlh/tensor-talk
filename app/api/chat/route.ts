@@ -1,10 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, streamText } from "ai";
 
-import {
-  judgeGrounding,
-  shouldKeepRepair,
-} from "@/lib/grounding";
+import { judgeGrounding, shouldKeepRepair } from "@/lib/grounding";
 import {
   parseModelText,
   type ChatRequest,
@@ -85,10 +82,7 @@ export async function POST(request: Request) {
   const chatRequest = await parseChatRequest(request);
 
   if (!chatRequest) {
-    return Response.json(
-      { error: "Message is required." },
-      { status: 400 },
-    );
+    return Response.json({ error: "Message is required." }, { status: 400 });
   }
 
   return createChatStream(chatRequest);
@@ -385,7 +379,11 @@ async function runChatHarness(
           };
           stage("repair", "complete", "Repair improved grounding.");
         } else {
-          stage("repair", "complete", "Original answer kept after repair check.");
+          stage(
+            "repair",
+            "complete",
+            "Original answer kept after repair check.",
+          );
         }
       } catch (error) {
         if (isHarnessConfigurationError(error)) {
@@ -480,7 +478,9 @@ async function runPlanner(
     stage(
       "planning",
       "complete",
-      planner.needWeb ? "Planner selected official web search." : "Planner kept local route.",
+      planner.needWeb
+        ? "Planner selected official web search."
+        : "Planner kept local route.",
     );
 
     return planner;
@@ -558,7 +558,10 @@ async function runHostedPlanner(
     queryType: stringField(json.queryType, "official_web"),
     answerFocus: stringField(json.answerFocus, "Answer the user question."),
     targetKeywords: stringArrayField(json.targetKeywords).slice(0, 8),
-    searchQueries: nonEmptyStringArray(json.searchQueries, [message]).slice(0, 3),
+    searchQueries: nonEmptyStringArray(json.searchQueries, [message]).slice(
+      0,
+      3,
+    ),
     reason: stringField(json.reason, "Harness planner selected the route."),
     source: harnessMode,
     raw: json,
@@ -682,19 +685,16 @@ function buildPrompt(
     EMPTY_HISTORY_BLOCK,
     ...promptSuffix,
   ].join("\n");
-  const availableHistoryTokens =
-    inputTokenBudget - estimateTokens(fixedPrompt);
+  const availableHistoryTokens = inputTokenBudget - estimateTokens(fixedPrompt);
 
   if (availableHistoryTokens < 0) {
     throw new Error("Context budget exhausted.");
   }
 
   const historyContext = buildHistoryContext(history, availableHistoryTokens);
-  const prompt = [
-    ...promptPrefix,
-    historyContext.block,
-    ...promptSuffix,
-  ].join("\n");
+  const prompt = [...promptPrefix, historyContext.block, ...promptSuffix].join(
+    "\n",
+  );
   const estimatedInputTokens = estimateTokens(prompt);
 
   if (estimatedInputTokens > inputTokenBudget) {
@@ -760,7 +760,9 @@ function buildPlannerPrompt(
     "Return JSON only with keys: needWeb, queryType, answerFocus, targetKeywords, searchQueries, reason.",
     "",
     `Retrieval mode: ${retrievalMode}`,
-    localSummary ? `Local evidence summary:\n${localSummary}` : "Local evidence summary: none.",
+    localSummary
+      ? `Local evidence summary:\n${localSummary}`
+      : "Local evidence summary: none.",
     "",
     `Question: ${message}`,
   ].join("\n");
@@ -855,7 +857,10 @@ function getOpenRouterChatModel(modelName: string) {
   })(modelName);
 }
 
-function getHarnessModel(harnessMode: HarnessMode, tensorTalkModelName: string) {
+function getHarnessModel(
+  harnessMode: HarnessMode,
+  tensorTalkModelName: string,
+) {
   return harnessMode === "openrouter"
     ? getOpenRouterChatModel(getOpenRouterHarnessModel())
     : getTensorTalkModel(tensorTalkModelName);
@@ -976,7 +981,11 @@ function needsAcceptedWebEvidence(
 function createInitialStages(): ChatStage[] {
   return [
     { id: "planning", label: "Planning route", status: "pending" },
-    { id: "handbook", label: "Retrieving handbook evidence", status: "pending" },
+    {
+      id: "handbook",
+      label: "Retrieving handbook evidence",
+      status: "pending",
+    },
     { id: "web", label: "Searching official UM/FSKTM web", status: "pending" },
     { id: "trust", label: "Checking source trust", status: "pending" },
     { id: "generation", label: "Generating answer", status: "pending" },
@@ -1133,11 +1142,8 @@ function getPublicModelError(error: unknown) {
     return "No accepted official UM/FSKTM web evidence was found. Try another question or retry later.";
   }
 
-  if (
-    error instanceof Error &&
-    error.message === "Context budget exhausted."
-  ) {
-    return "The safe 4096-token context budget is exhausted. Shorten the question or start a new chat so older context can be omitted.";
+  if (error instanceof Error && error.message === "Context budget exhausted.") {
+    return "The safe 8192-token context budget is exhausted. Shorten the question or start a new chat so older context can be omitted.";
   }
 
   if (
