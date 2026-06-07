@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "auditStartedAt": "2026-06-07T01:46:28.969Z",
+    "auditFinishedAt": "2026-06-07T01:56:16.157Z",
+    "model": "nfdlh/tensortalk-v2",
+    "endpointBase": "https://api.runpod.ai/v2/[endpoint-id]/openai/v1",
+    "appBaseUrl": "http://localhost:3000",
+    "timeoutMs": 30000,
+    "maxPerPath": null,
+    "includeSemantic": false,
+    "failFast": 3
+  },
+  "eval_set": {
+    "total": 60,
+    "exact_sft": 25,
+    "paraphrase": 25,
+    "unsupported": 10
+  },
+  "by_path": {
+    "direct_notebook_chat": {
+      "path_label": "Direct endpoint, notebook-style chat prompt",
+      "count": 60,
+      "refusal_count": 5,
+      "empty_count": 0,
+      "invalid_count": 0,
+      "by_kind": {
+        "exact_sft": {
+          "count": 25,
+          "refusal_count": 0,
+          "empty_count": 0,
+          "invalid_count": 0,
+          "exact_match_rate": 0,
+          "token_f1": 0.3306,
+          "rouge_l": 0.2269,
+          "refusal_rate": 0,
+          "empty_rate": 0,
+          "invalid_rate": 0,
+          "avg_answer_words": 65.56,
+          "avg_latency_ms": 2181.2
+        },
+        "paraphrase": {
+          "count": 25,
+          "refusal_count": 0,
+          "empty_count": 0,
+          "invalid_count": 0,
+          "exact_match_rate": 0,
+          "token_f1": 0.3433,
+          "rouge_l": 0.2446,
+          "refusal_rate": 0,
+          "empty_rate": 0,
+          "invalid_rate": 0,
+          "avg_answer_words": 58.32,
+          "avg_latency_ms": 1946.68
+        },
+        "unsupported": {
+          "count": 10,
+          "refusal_count": 5,
+          "empty_count": 0,
+          "invalid_count": 0,
+          "exact_match_rate": 0,
+          "token_f1": 0,
+          "rouge_l": 0,
+          "refusal_rate": 0.5,
+          "empty_rate": 0,
+          "invalid_rate": 0,
+          "avg_answer_words": 34.3,
+          "avg_latency_ms": 1420.6
+        }
+      },
+      "failures": {
+        "fail_low_f1": 48,
+        "partial_low_f1": 2,
+        "unsupported_answered": 5,
+        "unsupported_refusal": 5
+      },
+      "exact_match_rate": 0,
+      "token_f1": 0.2808,
+      "rouge_l": 0.1965,
+      "refusal_rate": 0.0833,
+      "empty_rate": 0,
+      "invalid_rate": 0,
+      "avg_answer_words": 57.33,
+      "avg_latency_ms": 1956.72
+    },
+    "direct_plain_user": {
+      "path_label": "Direct endpoint, plain user prompt",
+      "count": 60,
+      "refusal_count": 0,
+      "empty_count": 58,
+      "invalid_count": 58,
+      "by_kind": {
+        "exact_sft": {
+          "count": 25,
+          "refusal_count": 0,
+          "empty_count": 25,
+          "invalid_count": 25,
+          "exact_match_rate": 0,
+          "token_f1": 0,
+          "rouge_l": 0,
+          "refusal_rate": 0,
+          "empty_rate": 1,
+          "invalid_rate": 1,
+          "avg_answer_words": 0,
+          "avg_latency_ms": 3281.76
+        },
+        "paraphrase": {
+          "count": 25,
+          "refusal_count": 0,
+          "empty_count": 25,
+          "invalid_count": 25,
+          "exact_match_rate": 0,
+          "token_f1": 0,
+          "rouge_l": 0,
+          "refusal_rate": 0,
+          "empty_rate": 1,
+          "invalid_rate": 1,
+          "avg_answer_words": 0,
+          "avg_latency_ms": 3281.08
+        },
+        "unsupported": {
+          "count": 10,
+          "refusal_count": 0,
+          "empty_count": 8,
+          "invalid_count": 8,
+          "exact_match_rate": 0,
+          "token_f1": 0,
+          "rouge_l": 0,
+          "refusal_rate": 0,
+          "empty_rate": 0.8,
+          "invalid_rate": 0.8,
+          "avg_answer_words": 6.5,
+          "avg_latency_ms": 3282.3
+        }
+      },
+      "failures": {
+        "empty_answer": 58,
+        "unsupported_answered": 2
+      },
+      "exact_match_rate": 0,
+      "token_f1": 0,
+      "rouge_l": 0,
+      "refusal_rate": 0,
+      "empty_rate": 0.9667,
+      "invalid_rate": 0.9667,
+      "avg_answer_words": 1.08,
+      "avg_latency_ms": 3281.57
+    },
+    "app_no_rag": {
+      "path_label": "App /api/chat retrievalMode=\"none\", webMode=\"off\"",
+      "count": 60,
+      "refusal_count": 14,
+      "empty_count": 0,
+      "invalid_count": 0,
+      "by_kind": {
+        "exact_sft": {
+          "count": 25,
+          "refusal_count": 5,
+          "empty_count": 0,
+          "invalid_count": 0,
+          "exact_match_rate": 0,
+          "token_f1": 0.2621,
+          "rouge_l": 0.1917,
+          "refusal_rate": 0.2,
+          "empty_rate": 0,
+          "invalid_rate": 0,
+          "avg_answer_words": 48.24,
+          "avg_latency_ms": 4489.44
+        },
+        "paraphrase": {
+          "count": 25,
+          "refusal_count": 1,
+          "empty_count": 0,
+          "invalid_count": 0,
+          "exact_match_rate": 0,
+          "token_f1": 0.2732,
+          "rouge_l": 0.1942,
+          "refusal_rate": 0.04,
+          "empty_rate": 0,
+          "invalid_rate": 0,
+          "avg_answer_words": 52.32,
+          "avg_latency_ms": 4955.36
+        },
+        "unsupported": {
+          "count": 10,
+          "refusal_count": 8,
+          "empty_count": 0,
+          "invalid_count": 0,
+          "exact_match_rate": 0,
+          "token_f1": 0,
+          "rouge_l": 0,
+          "refusal_rate": 0.8,
+          "empty_rate": 0,
+          "invalid_rate": 0,
+          "avg_answer_words": 38.8,
+          "avg_latency_ms": 3620.2
+        }
+      },
+      "failures": {
+        "fail_low_f1": 50,
+        "unsupported_refusal": 8,
+        "unsupported_answered": 2
+      },
+      "exact_match_rate": 0,
+      "token_f1": 0.223,
+      "rouge_l": 0.1608,
+      "refusal_rate": 0.2333,
+      "empty_rate": 0,
+      "invalid_rate": 0,
+      "avg_answer_words": 48.37,
+      "avg_latency_ms": 4538.7
+    }
+  },
+  "root_cause_ranking": [
+    "Serving/config/model mismatch: notebook-style direct prompting failed on exact SFT-style questions."
+  ],
+  "output_files": {
+    "eval_set": "outputs/eval-set.json",
+    "results_jsonl": "outputs/results.jsonl",
+    "results_csv": "outputs/results.csv",
+    "summary": "outputs/summary.json",
+    "config_diff": "outputs/config-diff.json",
+    "claims": "outputs/notebook-local-claims.json",
+    "report": "outputs/audit-report.md"
+  }
+}

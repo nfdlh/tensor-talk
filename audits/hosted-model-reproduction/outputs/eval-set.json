@@ -1,0 +1,507 @@
+[
+  {
+    "id": "exact_01",
+    "kind": "exact_sft",
+    "qa_id": "qa_000938",
+    "index_id": "UMI-0938",
+    "question": "Could you tell me what leave, absence, or emergency procedures are described during industrial training?",
+    "reference_answer": "Leave taken during Industrial Training usually has to be replaced unless the company states that replacement is not possible. Approved sick leave does not need to be replaced, but the medical certificate and the company supervisor's approval must be included in the logbook."
+  },
+  {
+    "id": "exact_02",
+    "kind": "exact_sft",
+    "qa_id": "qa_000744",
+    "index_id": "UMI-0744",
+    "question": "Could you tell me what graduate capabilities or professional strengths does Master of Software Engineering (Software Technology) aim to develop?",
+    "reference_answer": "The programme is designed to develop advanced software engineering knowledge, strong real-world problem-solving ability, capability in designing, building, verifying, validating, and managing quality software systems, mathematical and analytical competence across the software development life cycle, teamwork and communication skills, leadership, innovation, and professional ethics."
+  },
+  {
+    "id": "exact_03",
+    "kind": "exact_sft",
+    "qa_id": "qa_000747",
+    "index_id": "UMI-0747",
+    "question": "Could you tell me what academic or administrative conditions are highlighted under candidature requirements for Master of Software Engineering (Software Technology)?",
+    "reference_answer": "The candidature requirements include Fulfil the minimum candidature duration of 4 semesters.; Fulfil the University language requirement (Bahasa Malaysia and English) not later than the second (2nd) semester of candidature.; Fulfil the residential requirement of 6 months.; Proposal Defence at the beginning of the research component registration.; Present research progress in a Candidature Defence session as required by the Faculty."
+  },
+  {
+    "id": "exact_04",
+    "kind": "exact_sft",
+    "qa_id": "qa_000004",
+    "index_id": "UMI-0004",
+    "question": "What is the academic calendar for master and doctorate level in session 2025/2026?",
+    "reference_answer": "The 2025/2026 master and doctorate academic calendar with Semester I, Semester II, and a special semester, covering orientation, lecture periods, mid-semester breaks, revision weeks, final examinations, and semester breaks. Semester I: Orientation (WOW) 05.10.2025-12.10.2025; lectures 13.10.2025-23.11.2025 and 01.12.2025-25.01.2026; mid-semester break 24.11.2025-30.11.2025; revision week 26.01.2026-01.02.2026; final examination 02.02.2026-22.02.2026; semester break 23.02.2026-08.03.2026. Semester II: lectures 09.03.2026-26.04.2026 and 04.05.2026-21.06.2026; break 27.04.2026-03.05.2026; revision week 22.06.2026-28.06.2026; final examination 29.06.2026-19.07.2026; semester break 20.07.2026-16.08.2026. Special semester: lectures 27.07.2026-13.09.2026; final examination 14.09.2026-20.09.2026; break 21.09.2026-28.09.2026. Public holidays listed include Deepavali, Christmas, New Year, Thaipusam, Federal Territory Day, Chinese New Year, Nuzul Al-Quran, Eidul Fitri, Labour Day, Eidul Adha, Wesak Day, His Majesty the King's Birthday, Awal Muharram, Prophet Muhammad's Birthday, National Day, and Malaysia Day. The notes state that the module registration and examination schedule can be referred to in the UM system guide, the calendar is subject to change, and UM PG iFest 2026 is scheduled for 09-11 June 2026."
+  },
+  {
+    "id": "exact_05",
+    "kind": "exact_sft",
+    "qa_id": "qa_000916",
+    "index_id": "UMI-0916",
+    "question": "Hey, what elective focus areas are represented under specialization elective courses - computer system and network?",
+    "reference_answer": "The specialization elective section is intended to show the elective pool available for that track. Students should use it as a selection list of approved elective options, checking the course code, title, credits, and semester/level planning shown in the curriculum table before choosing courses."
+  },
+  {
+    "id": "exact_06",
+    "kind": "exact_sft",
+    "qa_id": "qa_000165",
+    "index_id": "UMI-0165",
+    "question": "What is stated about the VLSI Research Lab and its access conditions?",
+    "reference_answer": "The VLSI Research Lab is located on the second floor of Block B as an open-concept lab restricted to students from a specific field. All students can use its space and facilities with permission."
+  },
+  {
+    "id": "exact_07",
+    "kind": "exact_sft",
+    "qa_id": "qa_000453",
+    "index_id": "UMI-0453",
+    "question": "Real quick, what courses and course contents are listed for Master of Software Engineering (Software Technology)?",
+    "reference_answer": "The listed core courses are WOX7001 Research Methodology, WOC7004 Architecting Software Systems, WOC7014 Framework Based Software Design and Development, WOC7015 Software Verification and Validation, WOC7016 Software Project Management, and dissertation components. The elective list includes WOC7017 Big Data Processing, WOC7018 Requirements Engineering, WOC7019 User Experience Design Studio, WOC7020 Advanced Internet of Things, WOA7015 Advanced Machine Learning, and WOA7017 Security Risk Analysis and Evaluation. The handbook also includes important dissertation rules on eligibility, repeat registration until completion, and supervisor appointment."
+  },
+  {
+    "id": "exact_08",
+    "kind": "exact_sft",
+    "qa_id": "qa_000939",
+    "index_id": "UMI-0939",
+    "question": "Could you explain how are placements approved or verified by the faculty before industrial training begins?",
+    "reference_answer": "Before training begins, students must attend the required briefing and preparatory workshops, choose one placement, obtain an offer letter that states the training dates, general tasks, and department placement, email that offer letter to the Industrial Training Department Coordinator for approval, and register the internship placement in Maya and the career portal with the required documents."
+  },
+  {
+    "id": "exact_09",
+    "kind": "exact_sft",
+    "qa_id": "qa_001006",
+    "index_id": "UMI-1006",
+    "question": "So basically, how can students interpret their results using the official university grading scheme?",
+    "reference_answer": "Students interpret their results by referring to the official grading table, which links the marks obtained to a grade, a grade point, and the corresponding academic interpretation."
+  },
+  {
+    "id": "exact_10",
+    "kind": "exact_sft",
+    "qa_id": "qa_000963",
+    "index_id": "UMI-0963",
+    "question": "Could you tell me what deliverables are required for Academic Project II besides the written report?",
+    "reference_answer": "Besides the written report, Academic Project II requires project-progress documentation and submission materials through the ilmiah system for viva and final assessment, including items such as the progress logbook, presentation materials, and other required project submissions."
+  },
+  {
+    "id": "exact_11",
+    "kind": "exact_sft",
+    "qa_id": "qa_000664",
+    "index_id": "UMI-0664",
+    "question": "Quick one: which teaching labs mention Windows Active Directory, Windows 10, or direct Internet access?",
+    "reference_answer": "MM1, MM2, MM3, MM4, MM6, and the Postgraduate Lab are connected to Windows Active Directory servers and the Internet, while Stroustrup Lab 1 and Stroustrup Lab 2 are described as Internet-connected labs. Windows 10 is specifically mentioned for MM1, MM2, MM6, and Stroustrup Lab 1."
+  },
+  {
+    "id": "exact_12",
+    "kind": "exact_sft",
+    "qa_id": "qa_000795",
+    "index_id": "UMI-0795",
+    "question": "Could you tell me what admission background or entry qualifications are described for Master of Computer Science (By Research)?",
+    "reference_answer": "The handbook describes the admission background and entry qualifications for the programme, focusing on the applicant's prior computing-related academic preparation and the faculty's programme admission criteria."
+  },
+  {
+    "id": "exact_13",
+    "kind": "exact_sft",
+    "qa_id": "qa_000907",
+    "index_id": "UMI-0907",
+    "question": "Quick one: what's the role of university courses within the shared undergraduate curriculum?",
+    "reference_answer": "Within the shared undergraduate curriculum, the university courses provide common institutional and general-education requirements that all students complete alongside faculty and programme-specific courses."
+  },
+  {
+    "id": "exact_14",
+    "kind": "exact_sft",
+    "qa_id": "qa_000694",
+    "index_id": "UMI-0694",
+    "question": "Ngl, how is Internet access in the faculty building described for students?",
+    "reference_answer": "Wi-Fi Internet access is provided to students on every floor in each building, and students must follow the rules and regulations for using these facilities."
+  },
+  {
+    "id": "exact_15",
+    "kind": "exact_sft",
+    "qa_id": "qa_000218",
+    "index_id": "UMI-0218",
+    "question": "What academic or administrative conditions are highlighted under candidature requirements for Master of Software Engineering (Software Technology)?",
+    "reference_answer": "The candidature requirements include Fulfil the minimum candidature duration of 4 semesters.; Fulfil the University language requirement (Bahasa Malaysia and English) not later than the second (2nd) semester of candidature.; Fulfil the residential requirement of 6 months.; Proposal Defence at the beginning of the research component registration.; Present research progress in a Candidature Defence session as required by the Faculty."
+  },
+  {
+    "id": "exact_16",
+    "kind": "exact_sft",
+    "qa_id": "qa_000371",
+    "index_id": "UMI-0371",
+    "question": "How are plagiarism checking and originality expectations enforced in the academic project?",
+    "reference_answer": "Students are expected to produce original work and that plagiarism in the academic project may result in disciplinary action under the University of Malaya rules."
+  },
+  {
+    "id": "exact_17",
+    "kind": "exact_sft",
+    "qa_id": "qa_000387",
+    "index_id": "UMI-0387",
+    "question": "What policy links, regulations, or university rule documents are referenced for undergraduate students?",
+    "reference_answer": "The undergraduate rules section refers students to the University of Malaya Bachelor's Degree rules and regulations, together with related university policy and administrative references."
+  },
+  {
+    "id": "exact_18",
+    "kind": "exact_sft",
+    "qa_id": "qa_000170",
+    "index_id": "UMI-0170",
+    "question": "What facilities and research focus are described for the Robotedge AI Robotic Lab?",
+    "reference_answer": "The Robotedge AI Robotic Lab, previously known as the Natural Language Processing Lab, is equipped for AI robotics research and development, especially in environmental, home services, and search-and-rescue areas."
+  },
+  {
+    "id": "exact_19",
+    "kind": "exact_sft",
+    "qa_id": "qa_000381",
+    "index_id": "UMI-0381",
+    "question": "What dress expectations are illustrated for official events?",
+    "reference_answer": "For official events, the poster illustrates formal attire, including suit-style clothing and traditional formal wear, to convey a neat and official appearance appropriate for formal university occasions."
+  },
+  {
+    "id": "exact_20",
+    "kind": "exact_sft",
+    "qa_id": "qa_000862",
+    "index_id": "UMI-0862",
+    "question": "Hey, is Bachelor of Computer Science (Artificial Intelligence) listed among the undergraduate programmes offered by the faculty?",
+    "reference_answer": "Yes. Bachelor of Computer Science (Artificial Intelligence) is listed among the faculty's six undergraduate programmes."
+  },
+  {
+    "id": "exact_21",
+    "kind": "exact_sft",
+    "qa_id": "qa_000658",
+    "index_id": "UMI-0658",
+    "question": "Real quick, what facilities and student access are described for Micro Lab 4 (MM4)?",
+    "reference_answer": "Micro Lab 4 (MM4) has 60 computer units connected to Windows Active Directory servers and the Internet, and it is open to undergraduate and postgraduate students."
+  },
+  {
+    "id": "exact_22",
+    "kind": "exact_sft",
+    "qa_id": "qa_000472",
+    "index_id": "UMI-0472",
+    "question": "Could you list the programme goals, objectives, or learning outcomes for Master of Artificial Intelligence?",
+    "reference_answer": "The programme educational objectives focus on applying artificial intelligence techniques both theoretically and practically, contributing AI skills to sustainable development and societal well-being, and demonstrating professional attitudes and ethics in producing science and technology solutions. The learning outcomes emphasise mastery of AI knowledge, recommending innovative AI solutions, evaluating AI tools for usability and effectiveness, communicating and presenting technical materials, using tools and techniques to design and validate AI-related knowledge, leadership and teamwork, lifelong learning with an entrepreneurial mindset, and professional ethics in research and service."
+  },
+  {
+    "id": "exact_23",
+    "kind": "exact_sft",
+    "qa_id": "qa_000962",
+    "index_id": "UMI-0962",
+    "question": "Could you tell me what deliverables are required for Academic Project I besides the written report?",
+    "reference_answer": "Besides the written report, Academic Project I requires project-progress documentation and submission materials through the ilmiah system for monitoring, including items such as the progress logbook and presentation materials when required by the process."
+  },
+  {
+    "id": "exact_24",
+    "kind": "exact_sft",
+    "qa_id": "qa_000955",
+    "index_id": "UMI-0955",
+    "question": "Real quick, what implementation, development, or completion requirements apply in Academic Project II?",
+    "reference_answer": "Academic Project II focuses on implementation and completion. The report extends Academic Project I by including detailed system analysis and design, system development, results and discussion, strengths, limitations and future work, together with the completed report structure such as abstract, introduction, references, appendices, and acknowledgment."
+  },
+  {
+    "id": "exact_25",
+    "kind": "exact_sft",
+    "qa_id": "qa_000105",
+    "index_id": "UMI-0105",
+    "question": "What is the process flow for Academic Project II?",
+    "reference_answer": "The handbook presents Academic Project as a staged process covering topic or title approval, supervision, progress monitoring, submission through the ilmiah system, viva or evaluation sessions, and final report completion across Academic Project I and Academic Project II."
+  },
+  {
+    "id": "paraphrase_01",
+    "kind": "paraphrase",
+    "qa_id": "qa_000938",
+    "index_id": "UMI-0938",
+    "question": "Please explain this handbook question: Could you tell me what leave, absence, or emergency procedures are described during industrial training?",
+    "reference_answer": "Leave taken during Industrial Training usually has to be replaced unless the company states that replacement is not possible. Approved sick leave does not need to be replaced, but the medical certificate and the company supervisor's approval must be included in the logbook.",
+    "source_question": "Could you tell me what leave, absence, or emergency procedures are described during industrial training?"
+  },
+  {
+    "id": "paraphrase_02",
+    "kind": "paraphrase",
+    "qa_id": "qa_000744",
+    "index_id": "UMI-0744",
+    "question": "In simple terms, could you tell me what graduate capabilities or professional strengths does Master of Software Engineering (Software Technology) aim to develop?",
+    "reference_answer": "The programme is designed to develop advanced software engineering knowledge, strong real-world problem-solving ability, capability in designing, building, verifying, validating, and managing quality software systems, mathematical and analytical competence across the software development life cycle, teamwork and communication skills, leadership, innovation, and professional ethics.",
+    "source_question": "Could you tell me what graduate capabilities or professional strengths does Master of Software Engineering (Software Technology) aim to develop?"
+  },
+  {
+    "id": "paraphrase_03",
+    "kind": "paraphrase",
+    "qa_id": "qa_000747",
+    "index_id": "UMI-0747",
+    "question": "For a student, could you tell me what academic or administrative conditions are highlighted under candidature requirements for Master of Software Engineering (Software Technology)?",
+    "reference_answer": "The candidature requirements include Fulfil the minimum candidature duration of 4 semesters.; Fulfil the University language requirement (Bahasa Malaysia and English) not later than the second (2nd) semester of candidature.; Fulfil the residential requirement of 6 months.; Proposal Defence at the beginning of the research component registration.; Present research progress in a Candidature Defence session as required by the Faculty.",
+    "source_question": "Could you tell me what academic or administrative conditions are highlighted under candidature requirements for Master of Software Engineering (Software Technology)?"
+  },
+  {
+    "id": "paraphrase_04",
+    "kind": "paraphrase",
+    "qa_id": "qa_000004",
+    "index_id": "UMI-0004",
+    "question": "Could you summarize this: What is the academic calendar for master and doctorate level in session 2025/2026?",
+    "reference_answer": "The 2025/2026 master and doctorate academic calendar with Semester I, Semester II, and a special semester, covering orientation, lecture periods, mid-semester breaks, revision weeks, final examinations, and semester breaks. Semester I: Orientation (WOW) 05.10.2025-12.10.2025; lectures 13.10.2025-23.11.2025 and 01.12.2025-25.01.2026; mid-semester break 24.11.2025-30.11.2025; revision week 26.01.2026-01.02.2026; final examination 02.02.2026-22.02.2026; semester break 23.02.2026-08.03.2026. Semester II: lectures 09.03.2026-26.04.2026 and 04.05.2026-21.06.2026; break 27.04.2026-03.05.2026; revision week 22.06.2026-28.06.2026; final examination 29.06.2026-19.07.2026; semester break 20.07.2026-16.08.2026. Special semester: lectures 27.07.2026-13.09.2026; final examination 14.09.2026-20.09.2026; break 21.09.2026-28.09.2026. Public holidays listed include Deepavali, Christmas, New Year, Thaipusam, Federal Territory Day, Chinese New Year, Nuzul Al-Quran, Eidul Fitri, Labour Day, Eidul Adha, Wesak Day, His Majesty the King's Birthday, Awal Muharram, Prophet Muhammad's Birthday, National Day, and Malaysia Day. The notes state that the module registration and examination schedule can be referred to in the UM system guide, the calendar is subject to change, and UM PG iFest 2026 is scheduled for 09-11 June 2026.",
+    "source_question": "What is the academic calendar for master and doctorate level in session 2025/2026?"
+  },
+  {
+    "id": "paraphrase_05",
+    "kind": "paraphrase",
+    "qa_id": "qa_000916",
+    "index_id": "UMI-0916",
+    "question": "What should I know about this handbook topic: Hey, what elective focus areas are represented under specialization elective courses - computer system and network?",
+    "reference_answer": "The specialization elective section is intended to show the elective pool available for that track. Students should use it as a selection list of approved elective options, checking the course code, title, credits, and semester/level planning shown in the curriculum table before choosing courses.",
+    "source_question": "Hey, what elective focus areas are represented under specialization elective courses - computer system and network?"
+  },
+  {
+    "id": "paraphrase_06",
+    "kind": "paraphrase",
+    "qa_id": "qa_000165",
+    "index_id": "UMI-0165",
+    "question": "Please explain this handbook question: What is stated about the VLSI Research Lab and its access conditions?",
+    "reference_answer": "The VLSI Research Lab is located on the second floor of Block B as an open-concept lab restricted to students from a specific field. All students can use its space and facilities with permission.",
+    "source_question": "What is stated about the VLSI Research Lab and its access conditions?"
+  },
+  {
+    "id": "paraphrase_07",
+    "kind": "paraphrase",
+    "qa_id": "qa_000453",
+    "index_id": "UMI-0453",
+    "question": "In simple terms, real quick, what courses and course contents are listed for Master of Software Engineering (Software Technology)?",
+    "reference_answer": "The listed core courses are WOX7001 Research Methodology, WOC7004 Architecting Software Systems, WOC7014 Framework Based Software Design and Development, WOC7015 Software Verification and Validation, WOC7016 Software Project Management, and dissertation components. The elective list includes WOC7017 Big Data Processing, WOC7018 Requirements Engineering, WOC7019 User Experience Design Studio, WOC7020 Advanced Internet of Things, WOA7015 Advanced Machine Learning, and WOA7017 Security Risk Analysis and Evaluation. The handbook also includes important dissertation rules on eligibility, repeat registration until completion, and supervisor appointment.",
+    "source_question": "Real quick, what courses and course contents are listed for Master of Software Engineering (Software Technology)?"
+  },
+  {
+    "id": "paraphrase_08",
+    "kind": "paraphrase",
+    "qa_id": "qa_000939",
+    "index_id": "UMI-0939",
+    "question": "For a student, could you explain how are placements approved or verified by the faculty before industrial training begins?",
+    "reference_answer": "Before training begins, students must attend the required briefing and preparatory workshops, choose one placement, obtain an offer letter that states the training dates, general tasks, and department placement, email that offer letter to the Industrial Training Department Coordinator for approval, and register the internship placement in Maya and the career portal with the required documents.",
+    "source_question": "Could you explain how are placements approved or verified by the faculty before industrial training begins?"
+  },
+  {
+    "id": "paraphrase_09",
+    "kind": "paraphrase",
+    "qa_id": "qa_001006",
+    "index_id": "UMI-1006",
+    "question": "Could you summarize this: So basically, how can students interpret their results using the official university grading scheme?",
+    "reference_answer": "Students interpret their results by referring to the official grading table, which links the marks obtained to a grade, a grade point, and the corresponding academic interpretation.",
+    "source_question": "So basically, how can students interpret their results using the official university grading scheme?"
+  },
+  {
+    "id": "paraphrase_10",
+    "kind": "paraphrase",
+    "qa_id": "qa_000963",
+    "index_id": "UMI-0963",
+    "question": "What should I know about this handbook topic: Could you tell me what deliverables are required for Academic Project II besides the written report?",
+    "reference_answer": "Besides the written report, Academic Project II requires project-progress documentation and submission materials through the ilmiah system for viva and final assessment, including items such as the progress logbook, presentation materials, and other required project submissions.",
+    "source_question": "Could you tell me what deliverables are required for Academic Project II besides the written report?"
+  },
+  {
+    "id": "paraphrase_11",
+    "kind": "paraphrase",
+    "qa_id": "qa_000664",
+    "index_id": "UMI-0664",
+    "question": "Please explain this handbook question: Quick one: which teaching labs mention Windows Active Directory, Windows 10, or direct Internet access?",
+    "reference_answer": "MM1, MM2, MM3, MM4, MM6, and the Postgraduate Lab are connected to Windows Active Directory servers and the Internet, while Stroustrup Lab 1 and Stroustrup Lab 2 are described as Internet-connected labs. Windows 10 is specifically mentioned for MM1, MM2, MM6, and Stroustrup Lab 1.",
+    "source_question": "Quick one: which teaching labs mention Windows Active Directory, Windows 10, or direct Internet access?"
+  },
+  {
+    "id": "paraphrase_12",
+    "kind": "paraphrase",
+    "qa_id": "qa_000795",
+    "index_id": "UMI-0795",
+    "question": "In simple terms, could you tell me what admission background or entry qualifications are described for Master of Computer Science (By Research)?",
+    "reference_answer": "The handbook describes the admission background and entry qualifications for the programme, focusing on the applicant's prior computing-related academic preparation and the faculty's programme admission criteria.",
+    "source_question": "Could you tell me what admission background or entry qualifications are described for Master of Computer Science (By Research)?"
+  },
+  {
+    "id": "paraphrase_13",
+    "kind": "paraphrase",
+    "qa_id": "qa_000907",
+    "index_id": "UMI-0907",
+    "question": "For a student, quick one: what's the role of university courses within the shared undergraduate curriculum?",
+    "reference_answer": "Within the shared undergraduate curriculum, the university courses provide common institutional and general-education requirements that all students complete alongside faculty and programme-specific courses.",
+    "source_question": "Quick one: what's the role of university courses within the shared undergraduate curriculum?"
+  },
+  {
+    "id": "paraphrase_14",
+    "kind": "paraphrase",
+    "qa_id": "qa_000694",
+    "index_id": "UMI-0694",
+    "question": "Could you summarize this: Ngl, how is Internet access in the faculty building described for students?",
+    "reference_answer": "Wi-Fi Internet access is provided to students on every floor in each building, and students must follow the rules and regulations for using these facilities.",
+    "source_question": "Ngl, how is Internet access in the faculty building described for students?"
+  },
+  {
+    "id": "paraphrase_15",
+    "kind": "paraphrase",
+    "qa_id": "qa_000218",
+    "index_id": "UMI-0218",
+    "question": "What should I know about this handbook topic: What academic or administrative conditions are highlighted under candidature requirements for Master of Software Engineering (Software Technology)?",
+    "reference_answer": "The candidature requirements include Fulfil the minimum candidature duration of 4 semesters.; Fulfil the University language requirement (Bahasa Malaysia and English) not later than the second (2nd) semester of candidature.; Fulfil the residential requirement of 6 months.; Proposal Defence at the beginning of the research component registration.; Present research progress in a Candidature Defence session as required by the Faculty.",
+    "source_question": "What academic or administrative conditions are highlighted under candidature requirements for Master of Software Engineering (Software Technology)?"
+  },
+  {
+    "id": "paraphrase_16",
+    "kind": "paraphrase",
+    "qa_id": "qa_000371",
+    "index_id": "UMI-0371",
+    "question": "Please explain this handbook question: How are plagiarism checking and originality expectations enforced in the academic project?",
+    "reference_answer": "Students are expected to produce original work and that plagiarism in the academic project may result in disciplinary action under the University of Malaya rules.",
+    "source_question": "How are plagiarism checking and originality expectations enforced in the academic project?"
+  },
+  {
+    "id": "paraphrase_17",
+    "kind": "paraphrase",
+    "qa_id": "qa_000387",
+    "index_id": "UMI-0387",
+    "question": "In simple terms, what policy links, regulations, or university rule documents are referenced for undergraduate students?",
+    "reference_answer": "The undergraduate rules section refers students to the University of Malaya Bachelor's Degree rules and regulations, together with related university policy and administrative references.",
+    "source_question": "What policy links, regulations, or university rule documents are referenced for undergraduate students?"
+  },
+  {
+    "id": "paraphrase_18",
+    "kind": "paraphrase",
+    "qa_id": "qa_000170",
+    "index_id": "UMI-0170",
+    "question": "For a student, what facilities and research focus are described for the Robotedge AI Robotic Lab?",
+    "reference_answer": "The Robotedge AI Robotic Lab, previously known as the Natural Language Processing Lab, is equipped for AI robotics research and development, especially in environmental, home services, and search-and-rescue areas.",
+    "source_question": "What facilities and research focus are described for the Robotedge AI Robotic Lab?"
+  },
+  {
+    "id": "paraphrase_19",
+    "kind": "paraphrase",
+    "qa_id": "qa_000381",
+    "index_id": "UMI-0381",
+    "question": "Could you summarize this: What dress expectations are illustrated for official events?",
+    "reference_answer": "For official events, the poster illustrates formal attire, including suit-style clothing and traditional formal wear, to convey a neat and official appearance appropriate for formal university occasions.",
+    "source_question": "What dress expectations are illustrated for official events?"
+  },
+  {
+    "id": "paraphrase_20",
+    "kind": "paraphrase",
+    "qa_id": "qa_000862",
+    "index_id": "UMI-0862",
+    "question": "What should I know about this handbook topic: Hey, is Bachelor of Computer Science (Artificial Intelligence) listed among the undergraduate programmes offered by the faculty?",
+    "reference_answer": "Yes. Bachelor of Computer Science (Artificial Intelligence) is listed among the faculty's six undergraduate programmes.",
+    "source_question": "Hey, is Bachelor of Computer Science (Artificial Intelligence) listed among the undergraduate programmes offered by the faculty?"
+  },
+  {
+    "id": "paraphrase_21",
+    "kind": "paraphrase",
+    "qa_id": "qa_000658",
+    "index_id": "UMI-0658",
+    "question": "Please explain this handbook question: Real quick, what facilities and student access are described for Micro Lab 4 (MM4)?",
+    "reference_answer": "Micro Lab 4 (MM4) has 60 computer units connected to Windows Active Directory servers and the Internet, and it is open to undergraduate and postgraduate students.",
+    "source_question": "Real quick, what facilities and student access are described for Micro Lab 4 (MM4)?"
+  },
+  {
+    "id": "paraphrase_22",
+    "kind": "paraphrase",
+    "qa_id": "qa_000472",
+    "index_id": "UMI-0472",
+    "question": "In simple terms, could you list the programme goals, objectives, or learning outcomes for Master of Artificial Intelligence?",
+    "reference_answer": "The programme educational objectives focus on applying artificial intelligence techniques both theoretically and practically, contributing AI skills to sustainable development and societal well-being, and demonstrating professional attitudes and ethics in producing science and technology solutions. The learning outcomes emphasise mastery of AI knowledge, recommending innovative AI solutions, evaluating AI tools for usability and effectiveness, communicating and presenting technical materials, using tools and techniques to design and validate AI-related knowledge, leadership and teamwork, lifelong learning with an entrepreneurial mindset, and professional ethics in research and service.",
+    "source_question": "Could you list the programme goals, objectives, or learning outcomes for Master of Artificial Intelligence?"
+  },
+  {
+    "id": "paraphrase_23",
+    "kind": "paraphrase",
+    "qa_id": "qa_000962",
+    "index_id": "UMI-0962",
+    "question": "For a student, could you tell me what deliverables are required for Academic Project I besides the written report?",
+    "reference_answer": "Besides the written report, Academic Project I requires project-progress documentation and submission materials through the ilmiah system for monitoring, including items such as the progress logbook and presentation materials when required by the process.",
+    "source_question": "Could you tell me what deliverables are required for Academic Project I besides the written report?"
+  },
+  {
+    "id": "paraphrase_24",
+    "kind": "paraphrase",
+    "qa_id": "qa_000955",
+    "index_id": "UMI-0955",
+    "question": "Could you summarize this: Real quick, what implementation, development, or completion requirements apply in Academic Project II?",
+    "reference_answer": "Academic Project II focuses on implementation and completion. The report extends Academic Project I by including detailed system analysis and design, system development, results and discussion, strengths, limitations and future work, together with the completed report structure such as abstract, introduction, references, appendices, and acknowledgment.",
+    "source_question": "Real quick, what implementation, development, or completion requirements apply in Academic Project II?"
+  },
+  {
+    "id": "paraphrase_25",
+    "kind": "paraphrase",
+    "qa_id": "qa_000105",
+    "index_id": "UMI-0105",
+    "question": "What should I know about this handbook topic: What is the process flow for Academic Project II?",
+    "reference_answer": "The handbook presents Academic Project as a staged process covering topic or title approval, supervision, progress monitoring, submission through the ilmiah system, viva or evaluation sessions, and final report completion across Academic Project I and Academic Project II.",
+    "source_question": "What is the process flow for Academic Project II?"
+  },
+  {
+    "id": "unsupported_01",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "What is the weather in Kuala Lumpur today?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_02",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "Who won the latest FIFA World Cup final?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_03",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "Can you recommend the best laptop to buy this week?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_04",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "What is the current Bitcoin price?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_05",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "Write me a Python script to scrape private student records.",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_06",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "What is the cafeteria menu for tomorrow?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_07",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "Which lecturer is free right now for consultation?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_08",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "What is my current CGPA?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_09",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "Can you guarantee my admission if I apply today?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  },
+  {
+    "id": "unsupported_10",
+    "kind": "unsupported",
+    "qa_id": null,
+    "index_id": null,
+    "question": "What are the live traffic conditions around Universiti Malaya?",
+    "reference_answer": "The handbook does not provide enough supported information to answer this question."
+  }
+]

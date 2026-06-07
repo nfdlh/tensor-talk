@@ -1,0 +1,209 @@
+{
+  "compared_at": "2026-06-07T01:46:29.053Z",
+  "baseline1": {
+    "label": "baseline1_hf_merged_model",
+    "dir": "/private/tmp/tensortalk_hf_audit/UM_Handbook/outputs/qwen3_um_handbook_optimized_1/merged_model",
+    "exists": true,
+    "config": {
+      "architectures": [
+        "Qwen3ForCausalLM"
+      ],
+      "model_type": "qwen3",
+      "dtype": "bfloat16",
+      "bos_token_id": 151643,
+      "eos_token_id": 151645,
+      "pad_token_id": null,
+      "max_position_embeddings": 40960,
+      "use_cache": true,
+      "transformers_version": "5.3.0"
+    },
+    "generation_config": {
+      "do_sample": true,
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "eos_token_id": [
+        151645,
+        151643
+      ],
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "transformers_version": "5.3.0"
+    },
+    "tokenizer_config": {
+      "tokenizer_class": "Qwen2Tokenizer",
+      "eos_token": "<|im_end|>",
+      "pad_token": "<|endoftext|>",
+      "bos_token": null,
+      "model_max_length": 131072,
+      "is_local": true
+    },
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "chat_template_has_enable_thinking": true,
+    "files": [
+      "config.json",
+      "generation_config.json",
+      "tokenizer_config.json",
+      "chat_template.jinja"
+    ]
+  },
+  "served": {
+    "label": "served_nfdlh_tensortalk_v2",
+    "dir": "/private/tmp/tensortalk_v2_audit",
+    "exists": true,
+    "config": {
+      "architectures": [
+        "Qwen3ForCausalLM"
+      ],
+      "model_type": "qwen3",
+      "dtype": "float32",
+      "quantization_config": {
+        "_load_in_4bit": true,
+        "_load_in_8bit": false,
+        "bnb_4bit_compute_dtype": "bfloat16",
+        "bnb_4bit_quant_storage": "uint8",
+        "bnb_4bit_quant_type": "nf4",
+        "bnb_4bit_use_double_quant": true,
+        "llm_int8_enable_fp32_cpu_offload": false,
+        "llm_int8_has_fp16_weight": false,
+        "llm_int8_skip_modules": null,
+        "llm_int8_threshold": 6,
+        "load_in_4bit": true,
+        "load_in_8bit": false,
+        "quant_method": "bitsandbytes"
+      },
+      "bos_token_id": 151643,
+      "eos_token_id": 151645,
+      "pad_token_id": null,
+      "max_position_embeddings": 40960,
+      "use_cache": false,
+      "transformers_version": "5.8.1"
+    },
+    "generation_config": {
+      "do_sample": true,
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "eos_token_id": [
+        151645,
+        151643
+      ],
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "transformers_version": "5.8.1"
+    },
+    "tokenizer_config": {
+      "tokenizer_class": "Qwen2Tokenizer",
+      "eos_token": "<|im_end|>",
+      "pad_token": "<|endoftext|>",
+      "bos_token": null,
+      "model_max_length": 131072,
+      "is_local": true,
+      "local_files_only": false
+    },
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "chat_template_has_enable_thinking": true,
+    "files": [
+      "config.json",
+      "generation_config.json",
+      "tokenizer_config.json",
+      "chat_template.jinja"
+    ]
+  },
+  "localPpo": {
+    "label": "local_ppo_inference_actor_model",
+    "dir": "/Users/nurfadilah/Downloads/ppo_qwen3_um_handbook_stage3_rule_reward_ppo/ppo_inference_actor_model",
+    "exists": true,
+    "config": {
+      "architectures": [
+        "Qwen3ForCausalLM"
+      ],
+      "model_type": "qwen3",
+      "dtype": "float32",
+      "quantization_config": {
+        "_load_in_4bit": true,
+        "_load_in_8bit": false,
+        "bnb_4bit_compute_dtype": "bfloat16",
+        "bnb_4bit_quant_storage": "uint8",
+        "bnb_4bit_quant_type": "nf4",
+        "bnb_4bit_use_double_quant": true,
+        "llm_int8_enable_fp32_cpu_offload": false,
+        "llm_int8_has_fp16_weight": false,
+        "llm_int8_skip_modules": null,
+        "llm_int8_threshold": 6,
+        "load_in_4bit": true,
+        "load_in_8bit": false,
+        "quant_method": "bitsandbytes"
+      },
+      "bos_token_id": 151643,
+      "eos_token_id": 151645,
+      "pad_token_id": null,
+      "max_position_embeddings": 40960,
+      "use_cache": false,
+      "transformers_version": "5.8.1"
+    },
+    "generation_config": {
+      "do_sample": true,
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "eos_token_id": [
+        151645,
+        151643
+      ],
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "transformers_version": "5.8.1"
+    },
+    "tokenizer_config": {
+      "tokenizer_class": "Qwen2Tokenizer",
+      "eos_token": "<|im_end|>",
+      "pad_token": "<|endoftext|>",
+      "bos_token": null,
+      "model_max_length": 131072,
+      "is_local": true,
+      "local_files_only": false
+    },
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "chat_template_has_enable_thinking": true,
+    "files": [
+      "config.json",
+      "generation_config.json",
+      "tokenizer_config.json",
+      "chat_template.jinja",
+      "model.safetensors"
+    ]
+  },
+  "selected_differences": {
+    "served_vs_baseline1": {
+      "config.dtype": {
+        "left": "float32",
+        "right": "bfloat16"
+      },
+      "config.quantization_config": {
+        "left": {
+          "_load_in_4bit": true,
+          "_load_in_8bit": false,
+          "bnb_4bit_compute_dtype": "bfloat16",
+          "bnb_4bit_quant_storage": "uint8",
+          "bnb_4bit_quant_type": "nf4",
+          "bnb_4bit_use_double_quant": true,
+          "llm_int8_enable_fp32_cpu_offload": false,
+          "llm_int8_has_fp16_weight": false,
+          "llm_int8_skip_modules": null,
+          "llm_int8_threshold": 6,
+          "load_in_4bit": true,
+          "load_in_8bit": false,
+          "quant_method": "bitsandbytes"
+        }
+      },
+      "config.use_cache": {
+        "left": false,
+        "right": true
+      }
+    },
+    "served_vs_local_ppo": {},
+    "local_ppo_has_adapter_config": true,
+    "served_has_adapter_config": false
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "baseline1": {
+    "dataset": "SFT_QA_Training_Ready.jsonl",
+    "split": {
+      "train": 800,
+      "validation": 100,
+      "test": 100,
+      "seed": 42
+    },
+    "prompt_format": "chat messages: system prompt + user question; evaluation adds 'Answer directly and do not show reasoning. /no_think' and calls apply_chat_template(add_generation_prompt=True, enable_thinking=False)",
+    "generation": {
+      "max_seq_length": 1024,
+      "max_new_tokens": 160,
+      "do_sample": false,
+      "temperature_defined_but_unused_when_do_sample_false": 0.7,
+      "top_p_defined_but_unused_when_do_sample_false": 0.8,
+      "top_k_defined_but_unused_when_do_sample_false": 20,
+      "repetition_penalty": 1.02
+    },
+    "lora": {
+      "base_model": "Qwen/Qwen3-8B",
+      "use_4bit": true,
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.1,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    },
+    "reported_generation_metrics": {
+      "validation_exact_match": 0.77,
+      "validation_token_f1": 0.9110538566697056,
+      "validation_rouge_l": 0.8979354036310578,
+      "test_exact_match": 0.72,
+      "test_token_f1": 0.8869183252215395,
+      "test_rouge_l": 0.8676948494563335
+    }
+  },
+  "baseline2": {
+    "retrieval": {
+      "type": "dense_embedding + faiss + metadata_rerank",
+      "embedding_model": "BAAI/bge-base-en-v1.5",
+      "top_k": 3,
+      "rerank_pool": 12,
+      "hit_at_1_primary": 0.821,
+      "hit_at_k_primary": 0.954,
+      "hit_at_k_same_group": 0.991,
+      "scope_match_at_1": 0.996
+    },
+    "plain_vs_rag_generation": {
+      "eval_size": 20,
+      "plain_exact_match": 0,
+      "plain_token_f1": 0.3391,
+      "rag_exact_match": 0,
+      "rag_token_f1": 0.846
+    },
+    "generation": {
+      "max_new_tokens": 128,
+      "do_sample": false,
+      "repetition_penalty": 1.02
+    }
+  },
+  "local_ppo": {
+    "stage": "Stage 3 PPO",
+    "initial_actor_source": "base_plus_fresh_ppo_lora; uses_previous_stage_weights=false; uses_previous_stage_adapter=false",
+    "run_type": "full_1000row_rule_reward_ppo_2epoch_900steps",
+    "train_rows": 900,
+    "valid_rows": 100,
+    "reward_model": "rule_based_preference_reward_function",
+    "uses_separate_neural_reward_model": false,
+    "inference_full_weights_found": true,
+    "ppo_validation_predictions_note": "CSV is reward/prediction evidence, not a Baseline 1-style EM/F1 reproduction report."
+  }
+}
