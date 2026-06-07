@@ -43,8 +43,9 @@ sequenceDiagram
   reads NDJSON stage/metadata/text/done/error events, and turns API errors into
   user-visible messages.
 - `app/api/chat/route.ts` validates the message and selected retrieval/web
-  modes, retrieves local evidence, optionally plans and searches official web
-  evidence, builds a bounded prompt, streams the hosted TensorTalk model,
+  modes plus the selected harness and thinking modes, retrieves local evidence,
+  optionally plans and searches official web evidence, builds a bounded prompt,
+  streams the hosted TensorTalk model,
   separates `<think>` blocks into optional `thinking`, runs grounding and one
   repair pass, and returns answer, evidence, trace, grounding, route, and
   context metadata.
@@ -117,9 +118,13 @@ TENSORTALK_MODEL
 TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
 OPENROUTER_API_KEY
+OPENROUTER_BASE_URL
 OPENROUTER_EMBEDDING_MODEL
+OPENROUTER_HARNESS_MODEL
 EXA_API_KEY
 THREAD_TITLE_MODEL
+TENSORTALK_MAX_OUTPUT_TOKENS
+TENSORTALK_MAX_THINKING_TOKENS
 ```
 
 `TENSORTALK_MODEL` defaults to `nfdlh/tensortalk-v2`. `TENSORTALK_API_KEY` may
@@ -127,18 +132,27 @@ also come from `HUGGINGFACE_API_KEY` or `HF_TOKEN`. For the configured RunPod
 setup, use the RunPod API key.
 
 `OPENROUTER_EMBEDDING_MODEL` defaults to `baai/bge-base-en-v1.5`.
+`OPENROUTER_HARNESS_MODEL` defaults to `qwen/qwen3-8b` and is used only when
+the UI harness selector is set to OpenRouter Qwen. Final answer generation
+still uses the hosted TensorTalk endpoint.
+See `docs/qwen-harness.md` for the harness contract.
 `EXA_API_KEY` is required only when Web On is selected or Web Auto decides that
 official web evidence is required. `THREAD_TITLE_MODEL` defaults to a cheap
 OpenRouter title model and falls back to a trimmed question when unavailable.
 
-The model call uses:
+The final TensorTalk answer call uses:
 
 ```text
-maxOutputTokens: 512
+maxOutputTokens: TENSORTALK_MAX_OUTPUT_TOKENS, default 640
 temperature: 0.2
 timeout: 60000 ms
 maxRetries: 1
 ```
+
+The Route combobox also exposes a thinking mode. `Off` asks for a direct answer
+and uses a very small `<think>` cutoff, `Limited` uses
+`TENSORTALK_MAX_THINKING_TOKENS`, and `More` raises the per-request thinking
+budget and output budget without changing the final answer model.
 
 The response `mode` is one of:
 

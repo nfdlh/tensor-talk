@@ -23,6 +23,7 @@ export type Evidence = {
 export type RetrievalMode = "lexical" | "semantic" | "none";
 export type WebMode = "auto" | "on" | "off";
 export type HarnessMode = "tensortalk" | "openrouter";
+export type ThinkingMode = "off" | "limited" | "more";
 
 export type StageStatus = "pending" | "active" | "complete" | "error";
 
@@ -77,6 +78,7 @@ export type ChatTrace = {
     retrievalMode: RetrievalMode;
     webMode: WebMode;
     harnessMode: HarnessMode;
+    thinkingMode: ThinkingMode;
     usedLocal: boolean;
     usedWeb: boolean;
     modelOnly: boolean;
@@ -95,6 +97,7 @@ export type ChatRequest = {
   retrievalMode?: RetrievalMode;
   webMode?: WebMode;
   harnessMode?: HarnessMode;
+  thinkingMode?: ThinkingMode;
   history?: ChatHistoryTurn[];
 };
 
@@ -124,6 +127,7 @@ export type ChatResponse = {
   retrievalMode?: RetrievalMode;
   webMode?: WebMode;
   harnessMode?: HarnessMode;
+  thinkingMode?: ThinkingMode;
   trace?: ChatTrace;
   grounding?: GroundingResult;
   context?: ChatContextMetadata;
@@ -143,6 +147,7 @@ export type ChatStreamEvent =
       retrievalMode?: RetrievalMode;
       webMode?: WebMode;
       harnessMode?: HarnessMode;
+      thinkingMode?: ThinkingMode;
       trace?: ChatTrace;
       grounding?: GroundingResult;
       context?: ChatContextMetadata;

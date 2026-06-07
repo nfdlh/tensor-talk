@@ -3,6 +3,7 @@ import type {
   ChatStage,
   HarnessMode,
   RetrievalMode,
+  ThinkingMode,
   WebMode,
 } from "@/lib/chat";
 
@@ -16,6 +17,7 @@ export type StoredTurn = ChatResponse & {
     retrievalMode: RetrievalMode;
     webMode: WebMode;
     harnessMode?: HarnessMode;
+    thinkingMode?: ThinkingMode;
   };
 };
 

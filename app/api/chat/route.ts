@@ -18,6 +18,7 @@ import {
   type HarnessMode,
   type PlannerTrace,
   type RetrievalMode,
+  type ThinkingMode,
   type WebMode,
 } from "@/lib/chat";
 import {
@@ -25,7 +26,7 @@ import {
   createContextMetadata,
   EMPTY_HISTORY_BLOCK,
   estimateTokens,
-  INPUT_TOKEN_BUDGET,
+  getInputTokenBudget,
 } from "@/lib/context-budget";
 import {
   getOpenRouterApiKey,
@@ -44,6 +45,7 @@ import {
   TENSORTALK_REPAIR_SYSTEM_PROMPT,
   TENSORTALK_SOURCE_RULES,
   TENSORTALK_SYSTEM_PROMPT,
+  TENSORTALK_THINKING_RULE,
   TENSORTALK_WEB_EVIDENCE_RULE,
 } from "@/lib/prompts";
 import { retrieveContext } from "@/lib/rag";
@@ -58,9 +60,23 @@ export const runtime = "nodejs";
 
 const DEFAULT_TENSORTALK_MODEL = "nfdlh/tensortalk-v2";
 const MODEL_TIMEOUT_MS = 60_000;
+const DEFAULT_MAX_OUTPUT_TOKENS = 640;
+const DEFAULT_MAX_THINKING_TOKENS = 180;
+const TOKEN_CHAR_RATIO = 4;
+const NO_THINK_RECOVERY_INSTRUCTIONS = [
+  "",
+  "The previous generation spent too much budget in thinking.",
+  "Answer now. Do not include analysis, reasoning, or <think> tags.",
+  "",
+  "Final answer:",
+  "/no_think",
+];
 
 type NormalizedChatRequest = Required<
-  Pick<ChatRequest, "message" | "retrievalMode" | "webMode" | "harnessMode">
+  Pick<
+    ChatRequest,
+    "message" | "retrievalMode" | "webMode" | "harnessMode" | "thinkingMode"
+  >
 > & {
   history: ChatHistoryTurn[];
 };
@@ -157,7 +173,14 @@ async function runChatHarness(
   write: (event: ChatStreamEvent) => void,
   abortSignal: AbortSignal,
 ): Promise<ChatResponse> {
-  const { message, retrievalMode, webMode, harnessMode, history } = chatRequest;
+  const {
+    message,
+    retrievalMode,
+    webMode,
+    harnessMode,
+    thinkingMode,
+    history,
+  } = chatRequest;
   const modelName = process.env.TENSORTALK_MODEL ?? DEFAULT_TENSORTALK_MODEL;
   const models = getModels(retrievalMode, modelName, harnessMode);
   const mode = `tensortalk-endpoint:${modelName}`;
@@ -238,6 +261,7 @@ async function runChatHarness(
       retrievalMode,
       webMode,
       harnessMode,
+      thinkingMode,
       usedLocal: handbookEvidence.length > 0,
       usedWeb: webEvidence.length > 0,
       modelOnly,
@@ -249,12 +273,15 @@ async function runChatHarness(
     stages,
   };
 
+  const maxOutputTokens = getMaxOutputTokens(thinkingMode);
   const promptPlan = buildPrompt(
     message,
     evidence,
     retrievalMode,
     webMode,
+    thinkingMode,
     history,
+    maxOutputTokens,
   );
 
   stage(
@@ -273,19 +300,53 @@ async function runChatHarness(
     retrievalMode,
     webMode,
     harnessMode,
+    thinkingMode,
     trace,
     context: promptPlan.context,
   });
 
-  const rawText = await streamModelAnswer(
+  const generation = await streamModelAnswer(
     promptPlan.prompt,
     modelName,
+    thinkingMode,
+    maxOutputTokens,
     write,
     abortSignal,
   );
+  const rawText = generation.rawText;
   const { answer, thinking } = parseModelText(rawText);
-  let finalAnswer =
-    answer ?? (thinking ? "The model did not return a final answer." : null);
+  const finalThinking = truncateThinking(thinking, thinkingMode);
+  let finalAnswer = answer;
+
+  if (!finalAnswer && (generation.stoppedForThinkingLimit || thinking)) {
+    stage(
+      "generation",
+      "active",
+      generation.stoppedForThinkingLimit
+        ? "Thinking limit reached; requesting final answer."
+        : "No final answer after thinking; requesting direct answer.",
+    );
+    const recoveryMaxOutputTokens = Math.min(getMaxOutputTokens("off"), 420);
+    const recoveryPromptPlan = buildPrompt(
+      message,
+      evidence,
+      retrievalMode,
+      webMode,
+      "off",
+      history,
+      recoveryMaxOutputTokens,
+      NO_THINK_RECOVERY_INSTRUCTIONS,
+    );
+
+    finalAnswer = await recoverAnswerWithoutThinking(
+      recoveryPromptPlan.prompt,
+      modelName,
+      recoveryMaxOutputTokens,
+      abortSignal,
+    );
+  }
+
+  finalAnswer ??= thinking ? "The model did not return a final answer." : null;
 
   if (!finalAnswer) {
     throw new Error("Fine-tuned model returned an empty answer.");
@@ -355,10 +416,11 @@ async function runChatHarness(
     retrievalMode,
     webMode,
     harnessMode,
+    thinkingMode,
     trace,
     grounding,
     context: promptPlan.context,
-    ...(thinking ? { thinking } : {}),
+    ...(finalThinking ? { thinking: finalThinking } : {}),
   };
 }
 
@@ -506,26 +568,60 @@ async function runHostedPlanner(
 async function streamModelAnswer(
   prompt: string,
   modelName: string,
+  thinkingMode: ThinkingMode,
+  maxOutputTokens: number,
   write: (event: ChatStreamEvent) => void,
   abortSignal: AbortSignal,
 ) {
+  const thinkingBudgetChars = getThinkingBudgetChars(thinkingMode);
   const result = streamText({
     model: getTensorTalkModel(modelName),
     prompt,
-    maxOutputTokens: 512,
+    maxOutputTokens,
     temperature: 0.2,
     timeout: MODEL_TIMEOUT_MS,
     abortSignal,
     maxRetries: 1,
   });
   let rawText = "";
+  let stoppedForThinkingLimit = false;
 
   for await (const chunk of result.textStream) {
     rawText += chunk;
+
+    if (getOpenThinkingLength(rawText) > thinkingBudgetChars) {
+      stoppedForThinkingLimit = true;
+      break;
+    }
+
     write({ type: "text", text: chunk });
   }
 
-  return rawText;
+  return { rawText, stoppedForThinkingLimit };
+}
+
+async function recoverAnswerWithoutThinking(
+  prompt: string,
+  modelName: string,
+  maxOutputTokens: number,
+  abortSignal: AbortSignal,
+) {
+  try {
+    const { text } = await generateText({
+      model: getTensorTalkModel(modelName),
+      prompt,
+      maxOutputTokens,
+      temperature: 0,
+      timeout: MODEL_TIMEOUT_MS,
+      abortSignal,
+      maxRetries: 0,
+    });
+    const parsed = parseModelText(text);
+
+    return parsed.answer ?? stripThinkTags(text);
+  } catch {
+    return null;
+  }
 }
 
 async function repairAnswer(
@@ -555,12 +651,17 @@ function buildPrompt(
   evidence: Evidence[],
   retrievalMode: RetrievalMode,
   webMode: WebMode,
+  thinkingMode: ThinkingMode,
   history: ChatHistoryTurn[] = [],
+  reservedOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS,
+  extraSuffix: string[] = [],
 ) {
+  const inputTokenBudget = getInputTokenBudget(reservedOutputTokens);
   const context = evidence.map(formatEvidenceForPrompt).join("\n\n");
   const modelOnly = evidence.length === 0;
   const promptPrefix = [
     TENSORTALK_SYSTEM_PROMPT,
+    getThinkingInstruction(thinkingMode),
     TENSORTALK_HISTORY_RULE,
     retrievalMode === "none"
       ? TENSORTALK_NO_LOCAL_EVIDENCE_RULE
@@ -575,13 +676,14 @@ function buildPrompt(
     "",
     "Conversation history:",
   ];
-  const promptSuffix = ["", `Question: ${message}`];
+  const promptSuffix = ["", `Question: ${message}`, ...extraSuffix];
   const fixedPrompt = [
     ...promptPrefix,
     EMPTY_HISTORY_BLOCK,
     ...promptSuffix,
   ].join("\n");
-  const availableHistoryTokens = INPUT_TOKEN_BUDGET - estimateTokens(fixedPrompt);
+  const availableHistoryTokens =
+    inputTokenBudget - estimateTokens(fixedPrompt);
 
   if (availableHistoryTokens < 0) {
     throw new Error("Context budget exhausted.");
@@ -595,14 +697,44 @@ function buildPrompt(
   ].join("\n");
   const estimatedInputTokens = estimateTokens(prompt);
 
-  if (estimatedInputTokens > INPUT_TOKEN_BUDGET) {
+  if (estimatedInputTokens > inputTokenBudget) {
     throw new Error("Context budget exhausted.");
   }
 
   return {
     prompt,
-    context: createContextMetadata(estimatedInputTokens, historyContext),
+    context: createContextMetadata(
+      estimatedInputTokens,
+      historyContext,
+      reservedOutputTokens,
+    ),
   };
+}
+
+function getThinkingInstruction(thinkingMode: ThinkingMode) {
+  const budgetTokens = getThinkingBudgetTokens(thinkingMode);
+
+  if (thinkingMode === "off") {
+    return [
+      "Thinking mode: off.",
+      "Return the final answer directly. Do not output <think> blocks, analysis, or hidden reasoning.",
+      "If the model still starts a <think> block, close it immediately and provide the final answer. /no_think",
+    ].join(" ");
+  }
+
+  if (thinkingMode === "more") {
+    return [
+      "Thinking mode: more.",
+      `If reasoning is needed, keep any <think> block under ${budgetTokens} tokens, close </think>, then provide the final answer.`,
+      "Do not spend the full answer budget on thinking.",
+    ].join(" ");
+  }
+
+  return [
+    "Thinking mode: limited.",
+    `Return the final answer directly when possible. If the model starts a <think> block, keep it under ${budgetTokens} tokens, close </think>, then provide the final answer.`,
+    "/no_think",
+  ].join(" ");
 }
 
 function buildPlannerPrompt(
@@ -622,6 +754,7 @@ function buildPlannerPrompt(
 
   return [
     TENSORTALK_PLANNER_SYSTEM_PROMPT,
+    TENSORTALK_THINKING_RULE,
     "Decide if the answer needs official UM/FSKTM web search.",
     "Use web for current/latest deadlines, fees, intake, admissions, contacts, announcements, events, staff, labs, facilities, programme pages, portals, libraries, careers, or weak/no local evidence.",
     "Return JSON only with keys: needWeb, queryType, answerFocus, targetKeywords, searchQueries, reason.",
@@ -640,6 +773,7 @@ function buildRepairPrompt(
 ) {
   return [
     TENSORTALK_REPAIR_SYSTEM_PROMPT,
+    TENSORTALK_THINKING_RULE,
     "Use only the accepted evidence as authority.",
     "Remove or qualify any unsupported exact facts.",
     "Keep the answer concise.",
@@ -745,6 +879,89 @@ function getModels(
   return models;
 }
 
+function getMaxOutputTokens(thinkingMode: ThinkingMode = "limited") {
+  const baseTokens = getPositiveIntegerEnv(
+    "TENSORTALK_MAX_OUTPUT_TOKENS",
+    DEFAULT_MAX_OUTPUT_TOKENS,
+  );
+
+  return thinkingMode === "more" ? Math.max(baseTokens, 1024) : baseTokens;
+}
+
+function getThinkingBudgetTokens(thinkingMode: ThinkingMode = "limited") {
+  const baseTokens = getPositiveIntegerEnv(
+    "TENSORTALK_MAX_THINKING_TOKENS",
+    DEFAULT_MAX_THINKING_TOKENS,
+  );
+
+  if (thinkingMode === "off") {
+    return Math.min(baseTokens, 24);
+  }
+
+  if (thinkingMode === "more") {
+    return Math.max(baseTokens * 2, 360);
+  }
+
+  return baseTokens;
+}
+
+function getThinkingBudgetChars(thinkingMode: ThinkingMode = "limited") {
+  return getThinkingBudgetTokens(thinkingMode) * TOKEN_CHAR_RATIO;
+}
+
+function getPositiveIntegerEnv(name: string, fallback: number) {
+  const rawValue = process.env[name];
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(rawValue, 10);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getOpenThinkingLength(text: string) {
+  const lowerText = text.toLowerCase();
+  const openIndex = lowerText.lastIndexOf("<think>");
+
+  if (openIndex === -1) {
+    return 0;
+  }
+
+  const closeIndex = lowerText.indexOf("</think>", openIndex);
+
+  if (closeIndex !== -1) {
+    return 0;
+  }
+
+  return text.length - openIndex - "<think>".length;
+}
+
+function truncateThinking(
+  thinking: string | null,
+  thinkingMode: ThinkingMode = "limited",
+) {
+  if (!thinking) {
+    return undefined;
+  }
+
+  const maxChars = getThinkingBudgetChars(thinkingMode);
+
+  if (thinking.length <= maxChars) {
+    return thinking;
+  }
+
+  return `${thinking.slice(0, maxChars).trim()}\n\n[Thinking truncated after ${getThinkingBudgetTokens(thinkingMode)} tokens.]`;
+}
+
+function stripThinkTags(text: string) {
+  return text
+    .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "")
+    .replace(/<\/think>/gi, "")
+    .trim();
+}
+
 function shouldUseLocal(retrievalMode: RetrievalMode) {
   return retrievalMode !== "none";
 }
@@ -801,10 +1018,11 @@ async function parseChatRequest(request: Request) {
     const retrievalMode = parseRetrievalMode(payload.retrievalMode);
     const webMode = parseWebMode(payload.webMode);
     const harnessMode = parseHarnessMode(payload.harnessMode);
+    const thinkingMode = parseThinkingMode(payload.thinkingMode);
     const history = normalizeHistory(payload.history);
 
     return message
-      ? { message, retrievalMode, webMode, harnessMode, history }
+      ? { message, retrievalMode, webMode, harnessMode, thinkingMode, history }
       : null;
   } catch {
     return null;
@@ -845,6 +1063,12 @@ function parseWebMode(mode: unknown): WebMode {
 
 function parseHarnessMode(mode: unknown): HarnessMode {
   return mode === "openrouter" || mode === "tensortalk" ? mode : "tensortalk";
+}
+
+function parseThinkingMode(mode: unknown): ThinkingMode {
+  return mode === "off" || mode === "more" || mode === "limited"
+    ? mode
+    : "limited";
 }
 
 function extractJson(text: string): Record<string, unknown> {

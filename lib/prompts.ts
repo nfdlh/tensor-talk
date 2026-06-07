@@ -4,6 +4,10 @@ export const TENSORTALK_SYSTEM_PROMPT =
   "Do not invent facts. If the evidence does not clearly support the answer, say so briefly. " +
   "Do not reveal hidden chain-of-thought.";
 
+export const TENSORTALK_THINKING_RULE =
+  "Return the final answer directly. Do not output <think> blocks or hidden reasoning. " +
+  "If the model still starts a <think> block, keep it very short, close </think>, then provide the final answer. /no_think";
+
 export const TENSORTALK_HISTORY_RULE =
   "Use conversation history only to resolve follow-up references, not as authority for official facts.";
 

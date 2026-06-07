@@ -51,13 +51,24 @@ Environment variables:
 TENSORTALK_MODEL=nfdlh/tensortalk-v2
 TENSORTALK_API_BASE_URL=https://api.runpod.ai/v2/2y1ra2h7x2bzii/openai/v1
 TENSORTALK_API_KEY=<RunPod API key>
+TENSORTALK_MAX_OUTPUT_TOKENS=640
+TENSORTALK_MAX_THINKING_TOKENS=180
 
 OPENROUTER_API_KEY=<OpenRouter API key>
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
+OPENROUTER_HARNESS_MODEL=qwen/qwen3-8b
 ```
 
 Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to create the SQLite
 vector store used by semantic mode.
+
+The harness selector uses the hosted TensorTalk model by default. Selecting
+OpenRouter Qwen changes planner and repair harness calls only; final answer
+generation remains `TENSORTALK_MODEL` through the RunPod endpoint.
+
+For the exact Qwen harness contract, including what it does and does not
+replace, see `docs/qwen-harness.md`.
 
 If the hosted model endpoint is unavailable, `/api/chat` returns an error
 instead of generating an evidence-only local answer.

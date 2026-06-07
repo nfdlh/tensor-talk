@@ -2,7 +2,7 @@ import type { ChatContextMetadata, ChatHistoryTurn } from "@/lib/chat";
 
 export const MAX_CONTEXT_TOKENS = 4096;
 export const RESERVED_OUTPUT_TOKENS = 768;
-export const INPUT_TOKEN_BUDGET = MAX_CONTEXT_TOKENS - RESERVED_OUTPUT_TOKENS;
+export const INPUT_TOKEN_BUDGET = getInputTokenBudget(RESERVED_OUTPUT_TOKENS);
 export const EMPTY_HISTORY_BLOCK = "";
 
 const MAX_HISTORY_QUESTION_CHARS = 280;
@@ -58,15 +58,16 @@ export function createContextMetadata(
     HistoryContext,
     "includedHistoryCount" | "omittedHistoryCount" | "contextTruncated"
   >,
+  reservedOutputTokens = RESERVED_OUTPUT_TOKENS,
 ): ChatContextMetadata {
   return {
     maxContextTokens: MAX_CONTEXT_TOKENS,
-    reservedOutputTokens: RESERVED_OUTPUT_TOKENS,
+    reservedOutputTokens,
     estimatedInputTokens,
     estimatedContextUsagePercent: Math.min(
       100,
       Math.round(
-        ((estimatedInputTokens + RESERVED_OUTPUT_TOKENS) /
+        ((estimatedInputTokens + reservedOutputTokens) /
           MAX_CONTEXT_TOKENS) *
           100,
       ),
@@ -75,6 +76,10 @@ export function createContextMetadata(
     omittedHistoryCount: historyContext.omittedHistoryCount,
     contextTruncated: historyContext.contextTruncated,
   };
+}
+
+export function getInputTokenBudget(reservedOutputTokens: number) {
+  return MAX_CONTEXT_TOKENS - Math.max(0, reservedOutputTokens);
 }
 
 export function estimateTokens(text: string) {

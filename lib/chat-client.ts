@@ -10,6 +10,7 @@ export async function sendChatMessage(
   payload: ChatRequest,
   onUpdate?: (partial: Partial<ChatResponse>) => void,
   onStage?: (stage: ChatStage) => void,
+  options: { signal?: AbortSignal } = {},
 ) {
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -17,6 +18,7 @@ export async function sendChatMessage(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -61,6 +63,7 @@ export async function sendChatMessage(
           retrievalMode: event.retrievalMode,
           webMode: event.webMode,
           harnessMode: event.harnessMode,
+          thinkingMode: event.thinkingMode,
           trace: event.trace,
           grounding: event.grounding,
           context: event.context,

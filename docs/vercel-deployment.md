@@ -19,8 +19,12 @@ Production variables:
 TENSORTALK_MODEL
 TENSORTALK_API_BASE_URL
 TENSORTALK_API_KEY
+TENSORTALK_MAX_OUTPUT_TOKENS
+TENSORTALK_MAX_THINKING_TOKENS
 OPENROUTER_API_KEY
+OPENROUTER_BASE_URL
 OPENROUTER_EMBEDDING_MODEL
+OPENROUTER_HARNESS_MODEL
 EXA_API_KEY
 THREAD_TITLE_MODEL
 ```
@@ -28,6 +32,9 @@ THREAD_TITLE_MODEL
 Semantic vector mode reads OpenRouter for embeddings and the TensorTalk endpoint
 for generation. Lexical mode reads MiniSearch for retrieval and uses the same
 TensorTalk endpoint for generation.
+The OpenRouter Qwen harness is used only when the UI harness selector is set to
+OpenRouter Qwen. It affects route planning and one-pass repair, not final answer
+generation. See `docs/qwen-harness.md`.
 Official web search reads Exa only when Web On is selected or Web Auto decides
 official web evidence is required. Thread titles use OpenRouter when available
 and fall back to a trimmed question when unavailable.
@@ -44,8 +51,12 @@ Set or update production variables:
 vercel env add TENSORTALK_MODEL production --force
 vercel env add TENSORTALK_API_BASE_URL production --force
 vercel env add TENSORTALK_API_KEY production --force
+vercel env add TENSORTALK_MAX_OUTPUT_TOKENS production --force
+vercel env add TENSORTALK_MAX_THINKING_TOKENS production --force
 vercel env add OPENROUTER_API_KEY production --force
+vercel env add OPENROUTER_BASE_URL production --force
 vercel env add OPENROUTER_EMBEDDING_MODEL production --force
+vercel env add OPENROUTER_HARNESS_MODEL production --force
 vercel env add EXA_API_KEY production --force
 vercel env add THREAD_TITLE_MODEL production --force
 ```

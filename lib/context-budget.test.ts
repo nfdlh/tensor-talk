@@ -5,6 +5,7 @@ import {
   createContextMetadata,
   EMPTY_HISTORY_BLOCK,
   estimateTokens,
+  getInputTokenBudget,
   MAX_CONTEXT_TOKENS,
   RESERVED_OUTPUT_TOKENS,
 } from "./context-budget";
@@ -86,6 +87,24 @@ describe("createContextMetadata", () => {
     expect(metadata.omittedHistoryCount).toBe(1);
     expect(metadata.contextTruncated).toBe(true);
     expect(metadata.estimatedContextUsagePercent).toBeGreaterThan(0);
+  });
+
+  it("uses a custom output reserve when requested", () => {
+    const reservedOutputTokens = 1024;
+    const metadata = createContextMetadata(
+      estimateTokens("x".repeat(1200)),
+      {
+        includedHistoryCount: 0,
+        omittedHistoryCount: 0,
+        contextTruncated: false,
+      },
+      reservedOutputTokens,
+    );
+
+    expect(metadata.reservedOutputTokens).toBe(reservedOutputTokens);
+    expect(getInputTokenBudget(reservedOutputTokens)).toBe(
+      MAX_CONTEXT_TOKENS - reservedOutputTokens,
+    );
   });
 });
 

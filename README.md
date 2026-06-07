@@ -65,8 +65,8 @@ The request flow is:
 7. Run the deterministic grounding judge when evidence exists, then perform one
    repair pass if exact facts are unsupported.
 8. Stream model text and stage events back to the UI, returning answer,
-   evidence, trace, grounding, mode, and optional `thinking` when the model
-   emits a `<think>` block.
+   evidence, trace, grounding, mode, and bounded optional `thinking` when the
+   model emits a `<think>` block.
 9. Add bounded thread history for follow-up questions. TensorTalk treats the
    live RunPod context window as 4096 tokens, reserves output space, includes
    newer turns first, and reports included/omitted history plus estimated usage.
@@ -82,6 +82,9 @@ Thread history is stored locally in browser IndexedDB. The app does not store
 API keys or large Exa page text in the browser.
 
 For the retrieval details, see `docs/rag.md`.
+For the Qwen/OpenRouter harness behavior, see `docs/qwen-harness.md`.
+For the TensorCat source/data pipeline comparison, see
+`docs/tensorcat-source-alignment.md`.
 
 ## Fine-tuned model
 
@@ -115,16 +118,23 @@ cp .env.example .env.local
 ```
 
 Then fill `TENSORTALK_API_KEY` in `.env.local`. The file is gitignored.
+`TENSORTALK_MAX_OUTPUT_TOKENS` controls final generation length.
+`TENSORTALK_MAX_THINKING_TOKENS` caps visible/runaway `<think>` output before
+TensorTalk requests a concise final answer.
 
 For semantic mode, also fill:
 
 ```text
 OPENROUTER_API_KEY=
 OPENROUTER_EMBEDDING_MODEL=baai/bge-base-en-v1.5
+OPENROUTER_HARNESS_MODEL=qwen/qwen3-8b
 ```
 
 Run `pnpm rag:index` after setting `OPENROUTER_API_KEY` to build the SQLite
 vector store.
+
+`OPENROUTER_HARNESS_MODEL` is used only when the UI harness selector is set to
+OpenRouter Qwen. It does not replace the final TensorTalk answer model.
 
 For official web search and automatic thread titles, fill:
 
@@ -159,8 +169,10 @@ See `docs/` for the model hosting and deployment notes:
 
 - `docs/architecture.md`
 - `docs/rag.md`
+- `docs/qwen-harness.md`
 - `docs/model-infrastructure.md`
 - `docs/huggingface-model.md`
 - `docs/runpod-endpoint.md`
 - `docs/vercel-deployment.md`
 - `docs/model-update-checklist.md`
+- `docs/tensorcat-source-alignment.md`

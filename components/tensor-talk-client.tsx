@@ -4,6 +4,9 @@ import {
   AlertTriangleIcon,
   BookOpenIcon,
   BrainCircuitIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CopyIcon,
   ExternalLinkIcon,
   FileTextIcon,
   Globe2Icon,
@@ -12,10 +15,13 @@ import {
   MoonIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
   PlusIcon,
   RotateCcwIcon,
   SearchIcon,
   SendIcon,
+  SquareIcon,
   SunIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -24,11 +30,15 @@ import { useTheme } from "next-themes";
 import {
   FormEvent,
   KeyboardEvent,
+  type ReactNode,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 
 import {
   Accordion,
@@ -55,7 +65,6 @@ import {
 } from "@/components/ui/empty";
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
@@ -65,8 +74,15 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -77,7 +93,6 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Spinner } from "@/components/ui/spinner";
 import { sendChatMessage } from "@/lib/chat-client";
 import type {
   ChatResponse,
@@ -86,6 +101,7 @@ import type {
   Evidence,
   HarnessMode,
   RetrievalMode,
+  ThinkingMode,
   WebMode,
 } from "@/lib/chat";
 import {
@@ -109,12 +125,19 @@ const EMPTY_STAGES: ChatStage[] = [
   { id: "repair", label: "Repairing answer", status: "pending" },
 ];
 
+const COPY_FEEDBACK_MS = 1600;
+const CLIENT_MAX_CONTEXT_TOKENS = 4096;
+const CLIENT_DEFAULT_OUTPUT_TOKENS = 640;
+const CLIENT_MORE_OUTPUT_TOKENS = 1024;
+
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
   const [retrievalMode, setRetrievalMode] =
     useState<RetrievalMode>("semantic");
   const [webMode, setWebMode] = useState<WebMode>("auto");
   const [harnessMode, setHarnessMode] = useState<HarnessMode>("tensortalk");
+  const [thinkingMode, setThinkingMode] =
+    useState<ThinkingMode>("limited");
   const [threads, setThreads] = useState<StoredThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string>("");
   const [selectedTurnId, setSelectedTurnId] = useState<string>("");
@@ -122,10 +145,16 @@ export function TensorTalkClient() {
   const [activeTab, setActiveTab] = useState<PanelTab>("evidence");
   const [pendingTurnId, setPendingTurnId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
   const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [copiedMessageKey, setCopiedMessageKey] = useState<string>("");
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const latestAnswerEndRef = useRef<HTMLDivElement>(null);
+  const activeRequestRef = useRef<AbortController | null>(null);
+  const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const { resolvedTheme, setTheme } = useTheme();
 
   const activeThread = useMemo(
@@ -138,8 +167,11 @@ export function TensorTalkClient() {
   const latestTurn = activeThread?.turns.at(-1);
   const isPending = Boolean(pendingTurnId);
   const isDark = resolvedTheme === "dark";
-  const latestModels = latestTurn?.models ?? [];
-  const activeContext = selectedTurn?.context ?? latestTurn?.context;
+  const composerContext = createDraftContextMetadata(
+    message,
+    thinkingMode,
+    activeThread,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -176,6 +208,16 @@ export function TensorTalkClient() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      activeRequestRef.current?.abort();
+
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
   function updateActiveThread(
     updater: (thread: StoredThread) => StoredThread,
     options: { persist?: boolean } = {},
@@ -203,7 +245,9 @@ export function TensorTalkClient() {
     if (shouldPersist) {
       queueMicrotask(() => {
         if (nextActiveThread) {
-          void saveThread(nextActiveThread);
+          void saveThread(nextActiveThread).catch(() => {
+            toast.error("Could not save thread.");
+          });
         }
       });
     }
@@ -212,11 +256,12 @@ export function TensorTalkClient() {
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const question = message.trim();
-
     if (isPending) {
+      stopCurrentResponse();
       return;
     }
+
+    const question = message.trim();
 
     if (!activeThread) {
       questionInputRef.current?.focus();
@@ -229,7 +274,12 @@ export function TensorTalkClient() {
     }
 
     setMessage("");
-    await sendQuestion(question, { retrievalMode, webMode, harnessMode });
+    await sendQuestion(question, {
+      retrievalMode,
+      webMode,
+      harnessMode,
+      thinkingMode,
+    });
   }
 
   async function sendQuestion(
@@ -238,6 +288,7 @@ export function TensorTalkClient() {
       retrievalMode: RetrievalMode;
       webMode: WebMode;
       harnessMode?: HarnessMode;
+      thinkingMode?: ThinkingMode;
     },
     retryTurnId?: string,
   ) {
@@ -247,6 +298,8 @@ export function TensorTalkClient() {
 
     const turnId = retryTurnId ?? crypto.randomUUID();
     const draftTurn = createDraftTurn(turnId, question, settings);
+    const abortController = new AbortController();
+    activeRequestRef.current = abortController;
     setPendingTurnId(turnId);
     setSelectedTurnId(turnId);
     setActiveTab("evidence");
@@ -266,6 +319,7 @@ export function TensorTalkClient() {
           retrievalMode: settings.retrievalMode,
           webMode: settings.webMode,
           harnessMode: settings.harnessMode ?? "tensortalk",
+          thinkingMode: settings.thinkingMode ?? "limited",
           history: buildHistoryForRequest(activeThread, retryTurnId),
         },
         (partial) => {
@@ -281,6 +335,7 @@ export function TensorTalkClient() {
         (stage) => {
           updateTurnStage(turnId, stage, { persist: false });
         },
+        { signal: abortController.signal },
       );
 
       updateTurn(turnId, {
@@ -289,6 +344,9 @@ export function TensorTalkClient() {
         error: undefined,
       });
       setPendingTurnId(null);
+      if (retryTurnId) {
+        toast.success("Answer retried.");
+      }
       window.requestAnimationFrame(() => {
         latestAnswerEndRef.current?.scrollIntoView({
           block: "end",
@@ -297,12 +355,35 @@ export function TensorTalkClient() {
       });
       maybeGenerateThreadTitle(question, response);
     } catch (error) {
+      if (isAbortError(error)) {
+        updateTurn(turnId, {
+          streaming: false,
+          error: "Response stopped.",
+        });
+        setPendingTurnId(null);
+        toast.success("Answer stopped.");
+        return;
+      }
+
+      const errorMessage = getErrorMessage(error);
+
       updateTurn(turnId, {
         streaming: false,
-        error: getErrorMessage(error),
+        error: errorMessage,
       });
       setPendingTurnId(null);
+      toast.error(retryTurnId ? "Retry failed." : "Answer failed.", {
+        description: errorMessage,
+      });
+    } finally {
+      if (activeRequestRef.current === abortController) {
+        activeRequestRef.current = null;
+      }
     }
+  }
+
+  function stopCurrentResponse() {
+    activeRequestRef.current?.abort();
   }
 
   function updateTurn(
@@ -349,6 +430,16 @@ export function TensorTalkClient() {
   }
 
   function startNewThread() {
+    const latestThread = threads[0];
+
+    if (latestThread && latestThread.turns.length === 0) {
+      setActiveThreadId(latestThread.id);
+      setSelectedTurnId("");
+      setOpenEvidenceIds([]);
+      setMessage("");
+      return;
+    }
+
     const thread = createThread();
 
     setThreads((current) => [thread, ...current]);
@@ -356,7 +447,13 @@ export function TensorTalkClient() {
     setSelectedTurnId("");
     setOpenEvidenceIds([]);
     setMessage("");
-    void saveThread(thread);
+    void saveThread(thread)
+      .then(() => {
+        toast.success("New chat created.");
+      })
+      .catch(() => {
+        toast.error("Could not save new chat.");
+      });
   }
 
   function selectThread(threadId: string) {
@@ -370,15 +467,23 @@ export function TensorTalkClient() {
   function removeThread(threadId: string) {
     const remaining = threads.filter((thread) => thread.id !== threadId);
     const nextThreads = remaining.length > 0 ? remaining : [createThread()];
+    const persistenceTasks: Array<Promise<void>> = [deleteThread(threadId)];
 
     setThreads(nextThreads);
-    void deleteThread(threadId);
 
     if (threadId === activeThreadId) {
       setActiveThreadId(nextThreads[0].id);
       setSelectedTurnId(nextThreads[0].selectedTurnId ?? "");
-      void saveThread(nextThreads[0]);
+      persistenceTasks.push(saveThread(nextThreads[0]));
     }
+
+    void Promise.all(persistenceTasks)
+      .then(() => {
+        toast.success("Thread deleted.");
+      })
+      .catch(() => {
+        toast.error("Could not delete thread.");
+      });
   }
 
   function retryTurn(turn: StoredTurn) {
@@ -389,9 +494,42 @@ export function TensorTalkClient() {
     void sendQuestion(turn.question, turn.settings, turn.id);
   }
 
+  async function copyMessageText(text: string, key: string) {
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    try {
+      await writeClipboardText(trimmed);
+      setCopiedMessageKey(key);
+
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current);
+      }
+
+      copyFeedbackTimeoutRef.current = setTimeout(() => {
+        setCopiedMessageKey("");
+      }, COPY_FEEDBACK_MS);
+      toast.success(
+        key.startsWith("question-") ? "Question copied." : "Answer copied.",
+      );
+    } catch {
+      setCopiedMessageKey("");
+      toast.error("Copy failed.", {
+        description: "The browser did not allow clipboard access.",
+      });
+    }
+  }
+
   function handleQuestionKeyDown(
     event: KeyboardEvent<HTMLTextAreaElement>,
   ) {
+    if (isPending) {
+      return;
+    }
+
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -402,6 +540,18 @@ export function TensorTalkClient() {
 
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  }
+
+  function handleQuestionBubbleKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    turnId: string,
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    setSelectedTurnId(turnId);
   }
 
   function selectTurnEvidence(turn: StoredTurn, evidenceId?: string) {
@@ -459,8 +609,12 @@ export function TensorTalkClient() {
         className={cn(
           "mx-auto grid h-full min-h-0 max-w-[1440px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden p-4 lg:grid-rows-none",
           sidebarCollapsed
-            ? "lg:grid-cols-[72px_minmax(0,1fr)_380px]"
-            : "lg:grid-cols-[280px_minmax(0,1fr)_380px]",
+            ? detailsCollapsed
+              ? "lg:grid-cols-[72px_minmax(0,1fr)_56px]"
+              : "lg:grid-cols-[72px_minmax(0,1fr)_380px]"
+            : detailsCollapsed
+              ? "lg:grid-cols-[280px_minmax(0,1fr)_56px]"
+              : "lg:grid-cols-[280px_minmax(0,1fr)_380px]",
         )}
       >
         <Card className="max-h-[calc(100dvh-2rem)] max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:py-3 lg:h-[calc(100dvh-2rem)]">
@@ -545,8 +699,9 @@ export function TensorTalkClient() {
           >
             <Button
               type="button"
-              className={cn("w-full", sidebarCollapsed && "size-9 px-0")}
+              className={cn(!sidebarCollapsed && "w-full")}
               variant="default"
+              size={sidebarCollapsed ? "icon-lg" : "default"}
               onClick={startNewThread}
               aria-label="New chat"
               title="New chat"
@@ -649,20 +804,37 @@ export function TensorTalkClient() {
                       key={turn.id}
                       className="flex min-w-0 flex-col gap-3"
                     >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTurnId(turn.id)}
-                        className={cn(
-                          "ml-auto box-border max-w-[78%] rounded-lg border bg-secondary px-3 py-2 text-left text-sm [overflow-wrap:anywhere]",
-                          selectedTurn?.id === turn.id &&
-                            "ring-2 ring-ring/30",
-                        )}
-                      >
-                        {turn.question}
-                      </button>
+                      <div className="group/question ml-auto flex max-w-[78%] items-start gap-1">
+                        <MessageCopyButton
+                          copied={copiedMessageKey === `question-${turn.id}`}
+                          label="Copy question"
+                          onCopy={() =>
+                            void copyMessageText(
+                              turn.question,
+                              `question-${turn.id}`,
+                            )
+                          }
+                          className="mt-0.5 opacity-0 group-hover/question:opacity-100"
+                        />
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedTurnId(turn.id)}
+                          onKeyDown={(event) =>
+                            handleQuestionBubbleKeyDown(event, turn.id)
+                          }
+                          className={cn(
+                            "box-border min-w-0 flex-1 cursor-text select-text rounded-lg border bg-secondary px-3 py-2 text-left text-sm [overflow-wrap:anywhere] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                            selectedTurn?.id === turn.id &&
+                              "ring-2 ring-ring/30",
+                          )}
+                        >
+                          {turn.question}
+                        </div>
+                      </div>
                       <div
                         className={cn(
-                          "box-border w-full max-w-[88%] rounded-lg border bg-card p-4",
+                          "group/answer box-border w-full max-w-[88%] rounded-lg border bg-card p-4",
                           selectedTurn?.id === turn.id &&
                             "ring-2 ring-ring/30",
                         )}
@@ -679,18 +851,32 @@ export function TensorTalkClient() {
                               <Badge variant="outline">Needs review</Badge>
                             ) : null}
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            aria-label="Retry answer"
-                            title="Retry answer"
-                            disabled={isPending}
-                            onClick={() => retryTurn(turn)}
-                          >
-                            <RotateCcwIcon className="size-4" />
-                          </Button>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <MessageCopyButton
+                              copied={copiedMessageKey === `answer-${turn.id}`}
+                              disabled={!turn.answer.trim()}
+                              label="Copy answer"
+                              onCopy={() =>
+                                void copyMessageText(
+                                  formatAnswerForDisplay(turn.answer),
+                                  `answer-${turn.id}`,
+                                )
+                              }
+                              className="opacity-0 group-hover/answer:opacity-100"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label="Retry answer"
+                              title="Retry answer"
+                              disabled={isPending}
+                              onClick={() => retryTurn(turn)}
+                            >
+                              <RotateCcwIcon className="size-4" />
+                            </Button>
+                          </div>
                         </div>
 
                         {turn.thinking ? (
@@ -711,12 +897,14 @@ export function TensorTalkClient() {
                           </div>
                         ) : null}
 
-                        <p className="text-sm leading-6 [overflow-wrap:anywhere]">
-                          {formatAnswerForDisplay(turn.answer) ||
+                        <AnswerMarkdown
+                          content={
+                            formatAnswerForDisplay(turn.answer) ||
                             (turn.streaming
                               ? "Waiting for streamed response..."
-                              : "")}
-                        </p>
+                              : "")
+                          }
+                        />
 
                         {turn.streaming && turn.answer ? (
                           <TracingSteps compact stages={turn.stages ?? EMPTY_STAGES} />
@@ -735,6 +923,9 @@ export function TensorTalkClient() {
                           </Badge>
                           <Badge variant="outline">
                             {getWebLabel(turn.settings.webMode)}
+                          </Badge>
+                          <Badge variant="outline">
+                            {getHarnessLabel(turn.settings.harnessMode)}
                           </Badge>
                           {turn.grounding ? (
                             <Badge variant="secondary">
@@ -798,33 +989,59 @@ export function TensorTalkClient() {
             </Card>
           ) : null}
 
-          <Card size="sm" className="shrink-0">
-            <CardContent className="pb-0">
-              <form onSubmit={submitQuestion}>
-                <FieldGroup>
-                  <Field>
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <FieldLabel htmlFor="question">Question</FieldLabel>
-                      <span className="text-xs text-muted-foreground">
-                        {getRetrievalLabel(retrievalMode)} with{" "}
-                        {getWebLabel(webMode)} via{" "}
-                        {getHarnessLabel(harnessMode)}
-                      </span>
-                    </div>
-                    <InputGroup className="min-h-20 items-stretch">
-                      <InputGroupTextarea
-                        id="question"
-                        ref={questionInputRef}
-                        value={message}
-                        onChange={(event) => setMessage(event.target.value)}
-                        onKeyDown={handleQuestionKeyDown}
-                        placeholder="Ask about rules, facilities, contacts, or official pages."
-                        disabled={isPending}
-                      />
-                      <InputGroupAddon align="block-end" className="border-t">
-                        <div className="flex w-full flex-col gap-1">
-                          <div className="flex w-full flex-wrap items-center justify-between gap-2">
-                            <div className="flex flex-wrap gap-2">
+          <div className="shrink-0 px-1 pb-1">
+            <Card size="sm">
+              <CardContent className="pb-3">
+                <form onSubmit={submitQuestion}>
+                  <FieldGroup>
+                    <Field>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <FieldLabel htmlFor="question">Question</FieldLabel>
+                      </div>
+                      <InputGroup className="min-h-28 items-stretch">
+                        <div className="relative flex w-full">
+                          <InputGroupTextarea
+                            id="question"
+                            ref={questionInputRef}
+                            value={message}
+                            onChange={(event) => setMessage(event.target.value)}
+                            onKeyDown={handleQuestionKeyDown}
+                          placeholder="Ask about rules, facilities, contacts, or official pages."
+                            className={cn(
+                              "min-h-24 pb-12",
+                              composerContext ? "pr-44" : "pr-14",
+                            )}
+                          />
+                          <div className="absolute right-3 bottom-3 z-10 flex items-center gap-2">
+                            <ContextIndicator
+                              context={composerContext}
+                              open={contextDetailsOpen}
+                              onOpenChange={setContextDetailsOpen}
+                            />
+                            <InputGroupButton
+                              type={isPending ? "button" : "submit"}
+                              variant="default"
+                              size="icon-sm"
+                              className={cn(
+                                "size-9 rounded-full p-0 shadow-sm",
+                                isPending &&
+                                  "bg-foreground text-background hover:bg-foreground/90",
+                              )}
+                              aria-label={isPending ? "Stop response" : "Ask"}
+                              title={isPending ? "Stop response" : "Ask"}
+                              onClick={isPending ? stopCurrentResponse : undefined}
+                            >
+                              {isPending ? (
+                                <SquareIcon className="size-3 fill-current" />
+                              ) : (
+                                <SendIcon className="size-4" />
+                              )}
+                            </InputGroupButton>
+                          </div>
+                        </div>
+                        <InputGroupAddon align="block-end" className="border-t">
+                          <div className="flex w-full flex-col gap-1">
+                            <div className="flex w-full flex-wrap items-center gap-2">
                               <Select
                                 items={[
                                   { label: "Semantic", value: "semantic" },
@@ -841,7 +1058,6 @@ export function TensorTalkClient() {
                                     setRetrievalMode(value);
                                   }
                                 }}
-                                disabled={isPending}
                               >
                                 <SelectTrigger
                                   aria-label="Retrieval mode"
@@ -858,178 +1074,466 @@ export function TensorTalkClient() {
                                   </SelectGroup>
                                 </SelectContent>
                               </Select>
-                              <Select
-                                items={[
-                                  { label: "Web Auto", value: "auto" },
-                                  { label: "Web On", value: "on" },
-                                  { label: "Web Off", value: "off" },
-                                ]}
-                                value={webMode}
-                                onValueChange={(value) => {
-                                  if (
-                                    value === "auto" ||
-                                    value === "on" ||
-                                    value === "off"
-                                  ) {
-                                    setWebMode(value);
-                                  }
-                                }}
-                                disabled={isPending}
-                              >
-                                <SelectTrigger
-                                  aria-label="Web search mode"
-                                  size="sm"
-                                  className="min-w-32 shrink-0"
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent align="start">
-                                  <SelectGroup>
-                                    <SelectItem value="auto">Web Auto</SelectItem>
-                                    <SelectItem value="on">Web On</SelectItem>
-                                    <SelectItem value="off">Web Off</SelectItem>
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
-                              <RadioGroup
-                                value={harnessMode}
-                                onValueChange={(value) => {
-                                  if (
-                                    value === "tensortalk" ||
-                                    value === "openrouter"
-                                  ) {
-                                    setHarnessMode(value);
-                                  }
-                                }}
-                                disabled={isPending}
-                                aria-label="Harness model"
-                                className="grid w-full grid-cols-2 gap-1 rounded-md border bg-background p-1 sm:w-auto"
-                              >
-                                <label
-                                  htmlFor="harness-tensortalk"
-                                  className={cn(
-                                    "flex h-8 min-w-28 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs font-medium text-muted-foreground transition-colors",
-                                    "has-[:checked]:bg-muted has-[:checked]:text-foreground",
-                                    isPending && "cursor-not-allowed opacity-60",
-                                  )}
-                                >
-                                  <RadioGroupItem
-                                    id="harness-tensortalk"
-                                    value="tensortalk"
-                                  />
-                                  TensorTalk
-                                </label>
-                                <label
-                                  htmlFor="harness-openrouter"
-                                  className={cn(
-                                    "flex h-8 min-w-28 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs font-medium text-muted-foreground transition-colors",
-                                    "has-[:checked]:bg-muted has-[:checked]:text-foreground",
-                                    isPending && "cursor-not-allowed opacity-60",
-                                  )}
-                                >
-                                  <RadioGroupItem
-                                    id="harness-openrouter"
-                                    value="openrouter"
-                                  />
-                                  OR Qwen
-                                </label>
-                              </RadioGroup>
+                              <RouteSettingsCombobox
+                                webMode={webMode}
+                                harnessMode={harnessMode}
+                                thinkingMode={thinkingMode}
+                                disabled={false}
+                                onWebModeChange={setWebMode}
+                                onHarnessModeChange={setHarnessMode}
+                                onThinkingModeChange={setThinkingMode}
+                              />
                             </div>
-                            <InputGroupButton
-                              type="submit"
-                              variant="default"
-                              size="sm"
-                              className="ml-auto shrink-0"
-                              disabled={isPending}
-                            >
-                              {isPending ? (
-                                <Spinner data-icon="inline-start" />
-                              ) : (
-                                <SendIcon data-icon="inline-start" />
-                              )}
-                              Ask
-                            </InputGroupButton>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <ContextIndicator
-                              context={activeContext}
-                              open={contextDetailsOpen}
-                              onToggle={() =>
-                                setContextDetailsOpen((current) => !current)
-                              }
-                            />
-                            {retrievalMode === "none" && webMode === "off" ? (
-                              <Badge variant="outline">Model-only</Badge>
-                            ) : null}
-                            {latestModels.map((model) => (
-                              <Badge
-                                key={`${model.role}-${model.name}`}
-                                variant="outline"
-                              >
-                                {getModelLabel(model)}
-                              </Badge>
-                            ))}
-                          </div>
-                          {selectedTurn?.error ? (
-                            <FieldDescription className="text-xs">
-                              {selectedTurn.error}
-                            </FieldDescription>
-                          ) : null}
-                        </div>
-                      </InputGroupAddon>
-                    </InputGroup>
-                  </Field>
-                </FieldGroup>
-              </form>
-            </CardContent>
-          </Card>
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </Field>
+                  </FieldGroup>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </section>
 
         <Card className="hidden max-h-[calc(100dvh-2rem)] lg:flex lg:h-[calc(100dvh-2rem)]">
-          <CardHeader>
-            <CardTitle>{activeTab === "evidence" ? "Evidence" : "Trace"}</CardTitle>
-            <CardDescription>
-              {selectedTurn
-                ? "Details for the selected message."
-                : "Select a message to inspect its support."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-col gap-3">
-            <div className="grid grid-cols-2 rounded-md border p-1">
+          {detailsCollapsed ? (
+            <CardContent className="flex h-full flex-col items-center gap-2 px-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Expand details sidebar"
+                title="Expand details sidebar"
+                onClick={() => setDetailsCollapsed(false)}
+              >
+                <PanelRightOpenIcon />
+              </Button>
+              <Separator className="my-1 w-8" />
               <Button
                 type="button"
                 variant={activeTab === "evidence" ? "secondary" : "ghost"}
-                size="sm"
+                size="icon"
+                aria-label="Evidence"
+                title="Evidence"
                 onClick={() => setActiveTab("evidence")}
               >
-                <FileTextIcon data-icon="inline-start" />
-                Evidence
+                <FileTextIcon className="size-4" />
               </Button>
               <Button
                 type="button"
                 variant={activeTab === "trace" ? "secondary" : "ghost"}
-                size="sm"
+                size="icon"
+                aria-label="Trace"
+                title="Trace"
                 onClick={() => setActiveTab("trace")}
               >
-                <LibraryIcon data-icon="inline-start" />
-                Trace
+                <LibraryIcon className="size-4" />
               </Button>
-            </div>
+            </CardContent>
+          ) : (
+            <>
+              <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                <div className="min-w-0">
+                  <CardTitle>
+                    {activeTab === "evidence" ? "Evidence" : "Trace"}
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedTurn
+                      ? "Details for the selected message."
+                      : "Select a message to inspect its support."}
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Collapse details sidebar"
+                  title="Collapse details sidebar"
+                  onClick={() => setDetailsCollapsed(true)}
+                >
+                  <PanelRightCloseIcon />
+                </Button>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-col gap-3">
+                <div className="grid grid-cols-2 rounded-md border p-1">
+                  <Button
+                    type="button"
+                    variant={activeTab === "evidence" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveTab("evidence")}
+                  >
+                    <FileTextIcon data-icon="inline-start" />
+                    Evidence
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={activeTab === "trace" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setActiveTab("trace")}
+                  >
+                    <LibraryIcon data-icon="inline-start" />
+                    Trace
+                  </Button>
+                </div>
 
-            {activeTab === "evidence" ? (
-              <EvidencePanel
-                evidence={selectedTurn?.evidence ?? []}
-                openEvidenceIds={openEvidenceIds}
-                onOpenEvidenceChange={setOpenEvidenceIds}
-                pending={Boolean(selectedTurn?.streaming)}
-              />
-            ) : (
-              <TracePanel turn={selectedTurn} />
-            )}
-          </CardContent>
+                {activeTab === "evidence" ? (
+                  <EvidencePanel
+                    evidence={selectedTurn?.evidence ?? []}
+                    openEvidenceIds={openEvidenceIds}
+                    onOpenEvidenceChange={setOpenEvidenceIds}
+                    pending={Boolean(selectedTurn?.streaming)}
+                  />
+                ) : (
+                  <TracePanel turn={selectedTurn} />
+                )}
+              </CardContent>
+            </>
+          )}
         </Card>
       </div>
     </main>
+  );
+}
+
+function MessageCopyButton({
+  copied,
+  disabled = false,
+  label,
+  onCopy,
+  className,
+}: {
+  copied: boolean;
+  disabled?: boolean;
+  label: string;
+  onCopy: () => void;
+  className?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={cn(
+        "size-8 shrink-0 transition-opacity focus-visible:opacity-100",
+        copied && "opacity-100",
+        className,
+      )}
+      aria-label={copied ? "Copied" : label}
+      title={copied ? "Copied" : label}
+      disabled={disabled}
+      onClick={onCopy}
+    >
+      {copied ? (
+        <CheckIcon className="size-4" />
+      ) : (
+        <CopyIcon className="size-4" />
+      )}
+    </Button>
+  );
+}
+
+function AnswerMarkdown({ content }: { content: string }) {
+  return (
+    <div className="space-y-3 text-sm leading-6 [overflow-wrap:anywhere]">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => (
+            <h3 className="text-base leading-6 font-semibold">{children}</h3>
+          ),
+          h2: ({ children }) => (
+            <h3 className="text-base leading-6 font-semibold">{children}</h3>
+          ),
+          h3: ({ children }) => (
+            <h3 className="text-sm leading-6 font-semibold">{children}</h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className="text-sm leading-6 font-semibold">{children}</h4>
+          ),
+          p: ({ children }) => <p>{children}</p>,
+          strong: ({ children }) => (
+            <strong className="font-semibold text-foreground">{children}</strong>
+          ),
+          em: ({ children }) => <em className="italic">{children}</em>,
+          a: ({ children, href }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary underline underline-offset-4"
+            >
+              {children}
+            </a>
+          ),
+          img: ({ alt, src }) => (
+            <span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+              Image:{" "}
+              {alt || (typeof src === "string" ? src : "") || "not displayed"}
+            </span>
+          ),
+          ul: ({ children }) => (
+            <ul className="list-disc space-y-1 pl-5">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="list-decimal space-y-1 pl-5">{children}</ol>
+          ),
+          li: ({ children }) => <li className="pl-1">{children}</li>,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 pl-3 text-muted-foreground">
+              {children}
+            </blockquote>
+          ),
+          code: ({ children }) => (
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+              {children}
+            </code>
+          ),
+          pre: ({ children }) => (
+            <pre className="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs leading-5">
+              {children}
+            </pre>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full border-collapse text-left text-xs">
+                {children}
+              </table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border-b bg-muted/50 px-2 py-1.5 font-semibold">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="border-t px-2 py-1.5 align-top">{children}</td>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+function RouteSettingsCombobox({
+  webMode,
+  harnessMode,
+  thinkingMode,
+  disabled,
+  onWebModeChange,
+  onHarnessModeChange,
+  onThinkingModeChange,
+}: {
+  webMode: WebMode;
+  harnessMode: HarnessMode;
+  thinkingMode: ThinkingMode;
+  disabled: boolean;
+  onWebModeChange: (mode: WebMode) => void;
+  onHarnessModeChange: (mode: HarnessMode) => void;
+  onThinkingModeChange: (mode: ThinkingMode) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-w-44 justify-between"
+            disabled={disabled}
+            aria-label="Route controls"
+          />
+        }
+      >
+        <span className="truncate">
+          Route: {getWebLabel(webMode)}, {getHarnessShortLabel(harnessMode)}
+        </span>
+        <ChevronDownIcon data-icon="inline-end" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-2">
+        <PopoverHeader className="px-2 pt-1 pb-2">
+          <PopoverTitle>Route</PopoverTitle>
+          <PopoverDescription>
+            Web search, harness model, and thinking budget for this answer.
+          </PopoverDescription>
+        </PopoverHeader>
+        <div className="flex flex-col gap-1">
+          <RouteOptionGroup
+            title="Web"
+            icon={<Globe2Icon className="size-4" />}
+            options={[
+              { label: "Web Auto", value: "auto" },
+              { label: "Web On", value: "on" },
+              { label: "Web Off", value: "off" },
+            ]}
+            value={webMode}
+            onChange={(value) => onWebModeChange(value as WebMode)}
+          />
+          <Separator className="my-1" />
+          <RouteOptionGroup
+            title="Harness"
+            icon={<BrainCircuitIcon className="size-4" />}
+            options={[
+              { label: "TensorTalk", value: "tensortalk" },
+              { label: "OpenRouter Qwen", value: "openrouter" },
+            ]}
+            value={harnessMode}
+            onChange={(value) => onHarnessModeChange(value as HarnessMode)}
+          />
+          <Separator className="my-1" />
+          <RouteOptionGroup
+            title="Thinking"
+            icon={<BrainCircuitIcon className="size-4" />}
+            options={[
+              { label: "Off", value: "off" },
+              { label: "Limited", value: "limited" },
+              { label: "More", value: "more" },
+            ]}
+            value={thinkingMode}
+            onChange={(value) => onThinkingModeChange(value as ThinkingMode)}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RouteOptionGroup({
+  title,
+  icon,
+  options,
+  value,
+  onChange,
+}: {
+  title: string;
+  icon: ReactNode;
+  options: Array<{ label: string; value: string }>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <section className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-muted-foreground">
+        {icon}
+        {title}
+      </div>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={option.value === value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md px-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+            option.value === value && "bg-muted font-medium text-foreground",
+          )}
+        >
+          <span>{option.label}</span>
+          {option.value === value ? <CheckIcon className="size-4" /> : null}
+        </button>
+      ))}
+    </section>
+  );
+}
+
+function ContextIndicator({
+  context,
+  open,
+  onOpenChange,
+}: {
+  context?: NonNullable<ChatResponse["context"]>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!context) {
+    return null;
+  }
+
+  const usage = context.estimatedContextUsagePercent;
+  const remaining = Math.max(
+    0,
+    context.maxContextTokens -
+      context.reservedOutputTokens -
+      context.estimatedInputTokens,
+  );
+  const warning = usage >= 85 || context.contextTruncated;
+  const title = [
+    `Context used: ${usage}%`,
+    `Input: ${context.estimatedInputTokens} tokens`,
+    `Remaining input budget: ${remaining} tokens`,
+    `Reserved output: ${context.reservedOutputTokens} tokens`,
+    `Included history: ${context.includedHistoryCount}`,
+    `Omitted history: ${context.omittedHistoryCount}`,
+    context.contextTruncated ? "Older context was omitted." : "No history omitted.",
+  ].join("\n");
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            title={title}
+            aria-label="Context usage"
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-full border bg-background/95 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+              warning && "border-destructive/40 text-destructive",
+            )}
+          />
+        }
+      >
+        <span
+          aria-hidden="true"
+          className="grid size-4 place-items-center rounded-full"
+          style={{
+            background: `conic-gradient(currentColor ${usage * 3.6}deg, var(--muted) 0deg)`,
+          }}
+        >
+          <span className="size-2 rounded-full bg-card" />
+        </span>
+        Context {usage}%
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" sideOffset={8} className="w-64 p-3 text-xs">
+        <PopoverHeader className="gap-0.5">
+          <PopoverTitle>Context Window</PopoverTitle>
+          <PopoverDescription>
+            Token budget used by the next answer.
+          </PopoverDescription>
+        </PopoverHeader>
+        <dl className="grid gap-1">
+          <ContextMetric label="Used" value={`${usage}%`} />
+          <ContextMetric
+            label="Input"
+            value={`${context.estimatedInputTokens} tokens`}
+          />
+          <ContextMetric
+            label="Reserved"
+            value={`${context.reservedOutputTokens} tokens`}
+          />
+          <ContextMetric label="Remaining" value={`${remaining} tokens`} />
+          <ContextMetric
+            label="History"
+            value={`${context.includedHistoryCount} in, ${context.omittedHistoryCount} omitted`}
+          />
+        </dl>
+        {context.contextTruncated ? (
+          <p className="text-destructive">
+            Older context was omitted to stay under 4096 tokens.
+          </p>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ContextMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="[overflow-wrap:anywhere]">{value}</dd>
+    </div>
   );
 }
 
@@ -1043,11 +1547,21 @@ function TracingSteps({
   const visibleStages = compact
     ? stages.filter((stage) => stage.status !== "pending")
     : stages;
+  const hasError = visibleStages.some((stage) => stage.status === "error");
+  const hasIncomplete = visibleStages.some(
+    (stage) => stage.status === "active" || stage.status === "pending",
+  );
 
   return (
     <div className="mb-4 rounded-md border bg-muted/30 px-3 py-3">
       <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-        <LoaderCircleIcon className="size-4 animate-spin" />
+        {hasError ? (
+          <AlertTriangleIcon className="size-4 text-destructive" />
+        ) : hasIncomplete ? (
+          <LoaderCircleIcon className="size-4 animate-spin" />
+        ) : (
+          <CheckIcon className="size-4 text-primary" />
+        )}
         Tracing steps
       </div>
       <ol className="relative flex flex-col gap-2 before:absolute before:top-3 before:bottom-3 before:left-[7px] before:w-px before:bg-border">
@@ -1110,98 +1624,6 @@ function ThinkingBlock({
         {thinking}
       </pre>
     </details>
-  );
-}
-
-function ContextIndicator({
-  context,
-  open,
-  onToggle,
-}: {
-  context?: NonNullable<ChatResponse["context"]>;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  if (!context) {
-    return null;
-  }
-
-  const usage = context.estimatedContextUsagePercent;
-  const remaining = Math.max(
-    0,
-    context.maxContextTokens -
-      context.reservedOutputTokens -
-      context.estimatedInputTokens,
-  );
-  const warning = usage >= 85 || context.contextTruncated;
-  const title = [
-    `Context used: ${usage}%`,
-    `Input: ${context.estimatedInputTokens} tokens`,
-    `Remaining input budget: ${remaining} tokens`,
-    `Reserved output: ${context.reservedOutputTokens} tokens`,
-    `Included history: ${context.includedHistoryCount}`,
-    `Omitted history: ${context.omittedHistoryCount}`,
-    context.contextTruncated ? "Older context was omitted." : "No history omitted.",
-  ].join("\n");
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        title={title}
-        aria-label="Context usage"
-        onClick={onToggle}
-        className={cn(
-          "flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-          warning && "border-destructive/40 text-destructive",
-        )}
-      >
-        <span
-          aria-hidden="true"
-          className="grid size-4 place-items-center rounded-full"
-          style={{
-            background: `conic-gradient(currentColor ${usage * 3.6}deg, var(--muted) 0deg)`,
-          }}
-        >
-          <span className="size-2 rounded-full bg-card" />
-        </span>
-        Context {usage}%
-      </button>
-      {open ? (
-        <div className="absolute bottom-8 left-0 z-30 w-64 rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-md">
-          <dl className="grid gap-1">
-            <ContextMetric label="Used" value={`${usage}%`} />
-            <ContextMetric
-              label="Input"
-              value={`${context.estimatedInputTokens} tokens`}
-            />
-            <ContextMetric
-              label="Reserved"
-              value={`${context.reservedOutputTokens} tokens`}
-            />
-            <ContextMetric label="Remaining" value={`${remaining} tokens`} />
-            <ContextMetric
-              label="History"
-              value={`${context.includedHistoryCount} in, ${context.omittedHistoryCount} omitted`}
-            />
-          </dl>
-          {context.contextTruncated ? (
-            <p className="mt-2 text-destructive">
-              Older context was omitted to stay under 4096 tokens.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ContextMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-2">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="[overflow-wrap:anywhere]">{value}</dd>
-    </div>
   );
 }
 
@@ -1436,6 +1858,9 @@ function TraceSummary({ trace }: { trace: ChatTrace }) {
         <Badge variant="outline">{getRetrievalLabel(trace.route.retrievalMode)}</Badge>
         <Badge variant="outline">{getWebLabel(trace.route.webMode)}</Badge>
         <Badge variant="outline">{getHarnessLabel(trace.route.harnessMode)}</Badge>
+        <Badge variant="outline">
+          Thinking {getThinkingLabel(trace.route.thinkingMode)}
+        </Badge>
         <Badge variant="secondary">
           {trace.route.modelOnly ? "Model-only" : "Grounded"}
         </Badge>
@@ -1554,11 +1979,13 @@ function createDraftTurn(
     retrievalMode: RetrievalMode;
     webMode: WebMode;
     harnessMode?: HarnessMode;
+    thinkingMode?: ThinkingMode;
   },
 ): StoredTurn {
   const normalizedSettings = {
     ...settings,
     harnessMode: settings.harnessMode ?? "tensortalk",
+    thinkingMode: settings.thinkingMode ?? "limited",
   };
 
   return {
@@ -1570,10 +1997,53 @@ function createDraftTurn(
     retrievalMode: normalizedSettings.retrievalMode,
     webMode: normalizedSettings.webMode,
     harnessMode: normalizedSettings.harnessMode,
+    thinkingMode: normalizedSettings.thinkingMode,
     settings: normalizedSettings,
     streaming: true,
     stages: EMPTY_STAGES,
   };
+}
+
+function createDraftContextMetadata(
+  message: string,
+  thinkingMode: ThinkingMode,
+  thread?: StoredThread,
+): NonNullable<ChatResponse["context"]> {
+  const reservedOutputTokens =
+    thinkingMode === "more"
+      ? CLIENT_MORE_OUTPUT_TOKENS
+      : CLIENT_DEFAULT_OUTPUT_TOKENS;
+  const history = thread ? buildHistoryForRequest(thread) : [];
+  const historyTokenEstimate = history.reduce(
+    (total, turn) =>
+      total +
+      Math.ceil(turn.question.slice(0, 280).length / 4) +
+      Math.ceil(stripThinkingForContext(turn.answer).slice(0, 700).length / 4),
+    0,
+  );
+  const estimatedInputTokens =
+    Math.ceil(message.trim().length / 4) + historyTokenEstimate;
+
+  return {
+    maxContextTokens: CLIENT_MAX_CONTEXT_TOKENS,
+    reservedOutputTokens,
+    estimatedInputTokens,
+    estimatedContextUsagePercent: Math.min(
+      100,
+      Math.round(
+        ((estimatedInputTokens + reservedOutputTokens) /
+          CLIENT_MAX_CONTEXT_TOKENS) *
+          100,
+      ),
+    ),
+    includedHistoryCount: history.length,
+    omittedHistoryCount: 0,
+    contextTruncated: false,
+  };
+}
+
+function stripThinkingForContext(answer: string) {
+  return answer.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
 }
 
 function buildHistoryForRequest(
@@ -1643,18 +2113,6 @@ function getEvidenceMeta(item: Evidence) {
   }`;
 }
 
-function getModelLabel(model: NonNullable<ChatResponse["models"]>[number]) {
-  if (model.role === "embedding") {
-    return `Embedding: ${model.name}`;
-  }
-
-  if (model.role === "harness") {
-    return `Harness: ${model.name}`;
-  }
-
-  return `Chat: ${model.name}`;
-}
-
 function getRetrievalLabel(mode?: RetrievalMode) {
   if (mode === "none") {
     return "No RAG";
@@ -1679,8 +2137,78 @@ function getHarnessLabel(mode?: HarnessMode) {
   return mode === "openrouter" ? "OpenRouter Qwen harness" : "TensorTalk harness";
 }
 
+function getHarnessShortLabel(mode?: HarnessMode) {
+  return mode === "openrouter" ? "OR Qwen" : "TensorTalk";
+}
+
+function getThinkingLabel(mode?: ThinkingMode) {
+  if (mode === "off") {
+    return "Off";
+  }
+
+  if (mode === "more") {
+    return "More";
+  }
+
+  return "Limited";
+}
+
+async function writeClipboardText(text: string) {
+  if (copyTextWithSelection(text)) {
+    return;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (error) {
+      throw error instanceof Error
+        ? error
+        : new Error("Copy command was rejected.");
+    }
+  }
+
+  throw new Error("Copy command was rejected.");
+}
+
+function copyTextWithSelection(text: string) {
+  const textarea = document.createElement("textarea");
+  const activeElement = document.activeElement;
+
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+
+    if (activeElement instanceof HTMLElement) {
+      activeElement.focus();
+    }
+  }
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Chat request failed.";
+}
+
+function isAbortError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
 }
 
 function fallbackTitle(question: string) {
