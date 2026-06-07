@@ -22,6 +22,7 @@ export type Evidence = {
 
 export type RetrievalMode = "lexical" | "semantic" | "none";
 export type WebMode = "auto" | "on" | "off";
+export type HarnessMode = "tensortalk" | "openrouter";
 
 export type StageStatus = "pending" | "active" | "complete" | "error";
 
@@ -58,7 +59,7 @@ export type PlannerTrace = {
   targetKeywords: string[];
   searchQueries: string[];
   reason: string;
-  source: "hosted-model" | "deterministic";
+  source: "tensortalk" | "openrouter" | "deterministic";
   raw?: unknown;
 };
 
@@ -75,6 +76,7 @@ export type ChatTrace = {
   route: {
     retrievalMode: RetrievalMode;
     webMode: WebMode;
+    harnessMode: HarnessMode;
     usedLocal: boolean;
     usedWeb: boolean;
     modelOnly: boolean;
@@ -92,6 +94,7 @@ export type ChatRequest = {
   message: string;
   retrievalMode?: RetrievalMode;
   webMode?: WebMode;
+  harnessMode?: HarnessMode;
   history?: ChatHistoryTurn[];
 };
 
@@ -115,11 +118,12 @@ export type ChatResponse = {
   evidence: Evidence[];
   mode: string;
   models?: Array<{
-    role: "embedding" | "chat";
+    role: "embedding" | "chat" | "harness";
     name: string;
   }>;
   retrievalMode?: RetrievalMode;
   webMode?: WebMode;
+  harnessMode?: HarnessMode;
   trace?: ChatTrace;
   grounding?: GroundingResult;
   context?: ChatContextMetadata;
@@ -138,6 +142,7 @@ export type ChatStreamEvent =
       models?: ChatResponse["models"];
       retrievalMode?: RetrievalMode;
       webMode?: WebMode;
+      harnessMode?: HarnessMode;
       trace?: ChatTrace;
       grounding?: GroundingResult;
       context?: ChatContextMetadata;

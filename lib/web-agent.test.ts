@@ -80,7 +80,7 @@ describe("applyDeterministicWebGuard", () => {
         targetKeywords: ["fee"],
         searchQueries: [],
         reason: "Hosted planner kept local route.",
-        source: "hosted-model",
+        source: "tensortalk",
       },
       "What is the current admission fee?",
       [{ kb_id: "weak", sourceType: "handbook", supportScore: 0.2 }],

@@ -21,6 +21,7 @@ flowchart LR
   API["POST /api/chat<br/>app/api/chat/route.ts"]
   Mode["Retrieval mode<br/>semantic, lexical, or no RAG"]
   WebMode["Web mode<br/>auto, on, or off"]
+  Harness["Harness model<br/>TensorTalk or OpenRouter Qwen"]
   Semantic["OpenRouter BGE embeddings<br/>SQLite vector store"]
   Lexical["MiniSearch retriever<br/>lib/rag.ts"]
   Exa["Exa raw search<br/>official UM/FSKTM allowlist"]
@@ -34,12 +35,14 @@ flowchart LR
   User --> UI --> API
   API --> Mode
   API --> WebMode
+  API --> Harness
   Mode --> Semantic --> KB
   Mode --> Lexical --> KB
   WebMode --> Exa --> Guard
   Semantic --> Prompt
   Lexical --> Prompt
   Guard --> Prompt
+  Harness --> Judge
   API --> Prompt --> Model --> Judge --> API
   API --> Response --> UI --> User
 ```
@@ -50,18 +53,21 @@ The request flow is:
    vectors remain the default.
 2. Use the selected web mode: Web Auto, Web On, or Web Off. Web Auto runs the
    route planner; Web On runs Exa and local RAG in parallel when RAG is enabled.
-3. Keep accepted local handbook evidence and up to 3 accepted official web
+3. Use the selected harness model for route planning and one-pass repair.
+   TensorTalk is the default and calls the RunPod fine-tuned model; OpenRouter
+   Qwen uses `OPENROUTER_HARNESS_MODEL`.
+4. Keep accepted local handbook evidence and up to 3 accepted official web
    evidence items. Rejected web URLs stay in Trace only.
-4. Add accepted evidence to the prompt. No RAG + Web Off produces a model-only
+5. Add accepted evidence to the prompt. No RAG + Web Off produces a model-only
    answer labeled as ungrounded.
-5. Call the fine-tuned `nfdlh/tensortalk-v2` model endpoint through
+6. Call the fine-tuned `nfdlh/tensortalk-v2` model endpoint through
    `@ai-sdk/openai-compatible`.
-6. Run the deterministic grounding judge when evidence exists, then perform one
+7. Run the deterministic grounding judge when evidence exists, then perform one
    repair pass if exact facts are unsupported.
-7. Stream model text and stage events back to the UI, returning answer,
+8. Stream model text and stage events back to the UI, returning answer,
    evidence, trace, grounding, mode, and optional `thinking` when the model
    emits a `<think>` block.
-8. Add bounded thread history for follow-up questions. TensorTalk treats the
+9. Add bounded thread history for follow-up questions. TensorTalk treats the
    live RunPod context window as 4096 tokens, reserves output space, includes
    newer turns first, and reports included/omitted history plus estimated usage.
 
@@ -69,7 +75,8 @@ Semantic mode uses OpenRouter `baai/bge-base-en-v1.5` embeddings and the
 SQLite vector index at `data/UM_RAG_Vectors.sqlite`. Lexical mode keeps the
 existing MiniSearch implementation. Official web search uses Exa raw retrieval
 with an allowlist for UM and FSKTM domains. All modes use the fine-tuned
-TensorTalk model for answer generation.
+TensorTalk model for answer generation. The harness switch only changes route
+planning and repair; it does not replace final-answer generation.
 
 Thread history is stored locally in browser IndexedDB. The app does not store
 API keys or large Exa page text in the browser.

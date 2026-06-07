@@ -66,6 +66,7 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -83,6 +84,7 @@ import type {
   ChatStage,
   ChatTrace,
   Evidence,
+  HarnessMode,
   RetrievalMode,
   WebMode,
 } from "@/lib/chat";
@@ -112,6 +114,7 @@ export function TensorTalkClient() {
   const [retrievalMode, setRetrievalMode] =
     useState<RetrievalMode>("semantic");
   const [webMode, setWebMode] = useState<WebMode>("auto");
+  const [harnessMode, setHarnessMode] = useState<HarnessMode>("tensortalk");
   const [threads, setThreads] = useState<StoredThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string>("");
   const [selectedTurnId, setSelectedTurnId] = useState<string>("");
@@ -226,12 +229,16 @@ export function TensorTalkClient() {
     }
 
     setMessage("");
-    await sendQuestion(question, { retrievalMode, webMode });
+    await sendQuestion(question, { retrievalMode, webMode, harnessMode });
   }
 
   async function sendQuestion(
     question: string,
-    settings: { retrievalMode: RetrievalMode; webMode: WebMode },
+    settings: {
+      retrievalMode: RetrievalMode;
+      webMode: WebMode;
+      harnessMode?: HarnessMode;
+    },
     retryTurnId?: string,
   ) {
     if (!activeThread) {
@@ -258,6 +265,7 @@ export function TensorTalkClient() {
           message: question,
           retrievalMode: settings.retrievalMode,
           webMode: settings.webMode,
+          harnessMode: settings.harnessMode ?? "tensortalk",
           history: buildHistoryForRequest(activeThread, retryTurnId),
         },
         (partial) => {
@@ -799,7 +807,8 @@ export function TensorTalkClient() {
                       <FieldLabel htmlFor="question">Question</FieldLabel>
                       <span className="text-xs text-muted-foreground">
                         {getRetrievalLabel(retrievalMode)} with{" "}
-                        {getWebLabel(webMode)}
+                        {getWebLabel(webMode)} via{" "}
+                        {getHarnessLabel(harnessMode)}
                       </span>
                     </div>
                     <InputGroup className="min-h-20 items-stretch">
@@ -882,6 +891,49 @@ export function TensorTalkClient() {
                                   </SelectGroup>
                                 </SelectContent>
                               </Select>
+                              <RadioGroup
+                                value={harnessMode}
+                                onValueChange={(value) => {
+                                  if (
+                                    value === "tensortalk" ||
+                                    value === "openrouter"
+                                  ) {
+                                    setHarnessMode(value);
+                                  }
+                                }}
+                                disabled={isPending}
+                                aria-label="Harness model"
+                                className="grid w-full grid-cols-2 gap-1 rounded-md border bg-background p-1 sm:w-auto"
+                              >
+                                <label
+                                  htmlFor="harness-tensortalk"
+                                  className={cn(
+                                    "flex h-8 min-w-28 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs font-medium text-muted-foreground transition-colors",
+                                    "has-[:checked]:bg-muted has-[:checked]:text-foreground",
+                                    isPending && "cursor-not-allowed opacity-60",
+                                  )}
+                                >
+                                  <RadioGroupItem
+                                    id="harness-tensortalk"
+                                    value="tensortalk"
+                                  />
+                                  TensorTalk
+                                </label>
+                                <label
+                                  htmlFor="harness-openrouter"
+                                  className={cn(
+                                    "flex h-8 min-w-28 cursor-pointer items-center gap-2 rounded-sm px-2 text-xs font-medium text-muted-foreground transition-colors",
+                                    "has-[:checked]:bg-muted has-[:checked]:text-foreground",
+                                    isPending && "cursor-not-allowed opacity-60",
+                                  )}
+                                >
+                                  <RadioGroupItem
+                                    id="harness-openrouter"
+                                    value="openrouter"
+                                  />
+                                  OR Qwen
+                                </label>
+                              </RadioGroup>
                             </div>
                             <InputGroupButton
                               type="submit"
@@ -1383,6 +1435,7 @@ function TraceSummary({ trace }: { trace: ChatTrace }) {
       <div className="flex flex-wrap gap-2">
         <Badge variant="outline">{getRetrievalLabel(trace.route.retrievalMode)}</Badge>
         <Badge variant="outline">{getWebLabel(trace.route.webMode)}</Badge>
+        <Badge variant="outline">{getHarnessLabel(trace.route.harnessMode)}</Badge>
         <Badge variant="secondary">
           {trace.route.modelOnly ? "Model-only" : "Grounded"}
         </Badge>
@@ -1497,17 +1550,27 @@ function createThread(): StoredThread {
 function createDraftTurn(
   id: string,
   question: string,
-  settings: { retrievalMode: RetrievalMode; webMode: WebMode },
+  settings: {
+    retrievalMode: RetrievalMode;
+    webMode: WebMode;
+    harnessMode?: HarnessMode;
+  },
 ): StoredTurn {
+  const normalizedSettings = {
+    ...settings,
+    harnessMode: settings.harnessMode ?? "tensortalk",
+  };
+
   return {
     id,
     question,
     answer: "",
     evidence: [],
     mode: "streaming",
-    retrievalMode: settings.retrievalMode,
-    webMode: settings.webMode,
-    settings,
+    retrievalMode: normalizedSettings.retrievalMode,
+    webMode: normalizedSettings.webMode,
+    harnessMode: normalizedSettings.harnessMode,
+    settings: normalizedSettings,
     streaming: true,
     stages: EMPTY_STAGES,
   };
@@ -1581,7 +1644,15 @@ function getEvidenceMeta(item: Evidence) {
 }
 
 function getModelLabel(model: NonNullable<ChatResponse["models"]>[number]) {
-  return `${model.role === "embedding" ? "Embedding" : "Chat"}: ${model.name}`;
+  if (model.role === "embedding") {
+    return `Embedding: ${model.name}`;
+  }
+
+  if (model.role === "harness") {
+    return `Harness: ${model.name}`;
+  }
+
+  return `Chat: ${model.name}`;
 }
 
 function getRetrievalLabel(mode?: RetrievalMode) {
@@ -1602,6 +1673,10 @@ function getWebLabel(mode?: WebMode) {
   }
 
   return "Web Auto";
+}
+
+function getHarnessLabel(mode?: HarnessMode) {
+  return mode === "openrouter" ? "OpenRouter Qwen harness" : "TensorTalk harness";
 }
 
 function getErrorMessage(error: unknown) {

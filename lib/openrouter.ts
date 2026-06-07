@@ -2,6 +2,7 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const EMBEDDING_TIMEOUT_MS = 30_000;
 
 export const DEFAULT_OPENROUTER_EMBEDDING_MODEL = "baai/bge-base-en-v1.5";
+export const DEFAULT_OPENROUTER_HARNESS_MODEL = "qwen/qwen3-8b";
 
 type OpenRouterEmbeddingResponse = {
   data?: Array<{
@@ -21,6 +22,10 @@ export function getOpenRouterEmbeddingModel() {
     process.env.OPENROUTER_EMBEDDING_MODEL ??
     DEFAULT_OPENROUTER_EMBEDDING_MODEL
   );
+}
+
+export function getOpenRouterHarnessModel() {
+  return process.env.OPENROUTER_HARNESS_MODEL ?? DEFAULT_OPENROUTER_HARNESS_MODEL;
 }
 
 export function getOpenRouterBaseUrl() {

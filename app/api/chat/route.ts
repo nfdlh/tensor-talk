@@ -15,6 +15,7 @@ import {
   type ChatTrace,
   type Evidence,
   type GroundingResult,
+  type HarnessMode,
   type PlannerTrace,
   type RetrievalMode,
   type WebMode,
@@ -26,7 +27,12 @@ import {
   estimateTokens,
   INPUT_TOKEN_BUDGET,
 } from "@/lib/context-budget";
-import { getOpenRouterEmbeddingModel } from "@/lib/openrouter";
+import {
+  getOpenRouterApiKey,
+  getOpenRouterBaseUrl,
+  getOpenRouterEmbeddingModel,
+  getOpenRouterHarnessModel,
+} from "@/lib/openrouter";
 import {
   TENSORTALK_CITATION_RULE,
   TENSORTALK_HISTORY_RULE,
@@ -54,7 +60,7 @@ const DEFAULT_TENSORTALK_MODEL = "nfdlh/tensortalk-v2";
 const MODEL_TIMEOUT_MS = 60_000;
 
 type NormalizedChatRequest = Required<
-  Pick<ChatRequest, "message" | "retrievalMode" | "webMode">
+  Pick<ChatRequest, "message" | "retrievalMode" | "webMode" | "harnessMode">
 > & {
   history: ChatHistoryTurn[];
 };
@@ -151,9 +157,9 @@ async function runChatHarness(
   write: (event: ChatStreamEvent) => void,
   abortSignal: AbortSignal,
 ): Promise<ChatResponse> {
-  const { message, retrievalMode, webMode, history } = chatRequest;
+  const { message, retrievalMode, webMode, harnessMode, history } = chatRequest;
   const modelName = process.env.TENSORTALK_MODEL ?? DEFAULT_TENSORTALK_MODEL;
-  const models = getModels(retrievalMode, modelName);
+  const models = getModels(retrievalMode, modelName, harnessMode);
   const mode = `tensortalk-endpoint:${modelName}`;
   let handbookEvidence: Evidence[] = [];
   let webEvidence: Evidence[] = [];
@@ -194,6 +200,7 @@ async function runChatHarness(
       planner = await runPlanner(
         message,
         retrievalMode,
+        harnessMode,
         handbookEvidence,
         stage,
         abortSignal,
@@ -230,6 +237,7 @@ async function runChatHarness(
     route: {
       retrievalMode,
       webMode,
+      harnessMode,
       usedLocal: handbookEvidence.length > 0,
       usedWeb: webEvidence.length > 0,
       modelOnly,
@@ -264,6 +272,7 @@ async function runChatHarness(
     models,
     retrievalMode,
     webMode,
+    harnessMode,
     trace,
     context: promptPlan.context,
   });
@@ -302,6 +311,7 @@ async function runChatHarness(
           finalAnswer,
           evidence,
           modelName,
+          harnessMode,
           abortSignal,
         );
         const repairedGrounding = judgeGrounding(message, repaired, evidence);
@@ -316,7 +326,11 @@ async function runChatHarness(
         } else {
           stage("repair", "complete", "Original answer kept after repair check.");
         }
-      } catch {
+      } catch (error) {
+        if (isHarnessConfigurationError(error)) {
+          throw error;
+        }
+
         stage("repair", "error", "Repair failed; original answer kept.");
       }
     }
@@ -340,6 +354,7 @@ async function runChatHarness(
     models,
     retrievalMode,
     webMode,
+    harnessMode,
     trace,
     grounding,
     context: promptPlan.context,
@@ -376,6 +391,7 @@ async function runLocalRetrieval(
 async function runPlanner(
   message: string,
   retrievalMode: RetrievalMode,
+  harnessMode: HarnessMode,
   localEvidence: Evidence[],
   stage: (
     id: ChatStage["id"],
@@ -391,6 +407,7 @@ async function runPlanner(
       await runHostedPlanner(
         message,
         retrievalMode,
+        harnessMode,
         localEvidence,
         abortSignal,
       ),
@@ -405,7 +422,11 @@ async function runPlanner(
     );
 
     return planner;
-  } catch {
+  } catch (error) {
+    if (isHarnessConfigurationError(error)) {
+      throw error;
+    }
+
     const planner = deterministicPlanner(message, localEvidence);
 
     stage(
@@ -454,12 +475,13 @@ async function runWebSearch(
 async function runHostedPlanner(
   message: string,
   retrievalMode: RetrievalMode,
+  harnessMode: HarnessMode,
   localEvidence: Evidence[],
   abortSignal: AbortSignal,
 ): Promise<PlannerTrace> {
   const modelName = process.env.TENSORTALK_MODEL ?? DEFAULT_TENSORTALK_MODEL;
   const { text } = await generateText({
-    model: getTensorTalkModel(modelName),
+    model: getHarnessModel(harnessMode, modelName),
     prompt: buildPlannerPrompt(message, retrievalMode, localEvidence),
     maxOutputTokens: 360,
     temperature: 0,
@@ -475,8 +497,8 @@ async function runHostedPlanner(
     answerFocus: stringField(json.answerFocus, "Answer the user question."),
     targetKeywords: stringArrayField(json.targetKeywords).slice(0, 8),
     searchQueries: nonEmptyStringArray(json.searchQueries, [message]).slice(0, 3),
-    reason: stringField(json.reason, "Hosted planner selected the route."),
-    source: "hosted-model",
+    reason: stringField(json.reason, "Harness planner selected the route."),
+    source: harnessMode,
     raw: json,
   };
 }
@@ -511,10 +533,11 @@ async function repairAnswer(
   answer: string,
   evidence: Evidence[],
   modelName: string,
+  harnessMode: HarnessMode,
   abortSignal: AbortSignal,
 ) {
   const { text } = await generateText({
-    model: getTensorTalkModel(modelName),
+    model: getHarnessModel(harnessMode, modelName),
     prompt: buildRepairPrompt(question, answer, evidence),
     maxOutputTokens: 640,
     temperature: 0.1,
@@ -684,16 +707,42 @@ function getTensorTalkModel(modelName: string) {
   })(modelName);
 }
 
+function getOpenRouterChatModel(modelName: string) {
+  const apiKey = getOpenRouterApiKey();
+
+  if (!apiKey) {
+    throw new Error("Missing OPENROUTER_API_KEY for harness.");
+  }
+
+  return createOpenAICompatible({
+    name: "openrouter",
+    baseURL: getOpenRouterBaseUrl(),
+    apiKey,
+  })(modelName);
+}
+
+function getHarnessModel(harnessMode: HarnessMode, tensorTalkModelName: string) {
+  return harnessMode === "openrouter"
+    ? getOpenRouterChatModel(getOpenRouterHarnessModel())
+    : getTensorTalkModel(tensorTalkModelName);
+}
+
 function getModels(
   retrievalMode: RetrievalMode,
   modelName: string,
+  harnessMode: HarnessMode,
 ): ChatResponse["models"] {
-  return retrievalMode === "semantic"
-    ? [
-        { role: "embedding", name: getOpenRouterEmbeddingModel() },
-        { role: "chat", name: modelName },
-      ]
-    : [{ role: "chat", name: modelName }];
+  const harnessModel =
+    harnessMode === "openrouter" ? getOpenRouterHarnessModel() : modelName;
+  const models: ChatResponse["models"] = [{ role: "chat", name: modelName }];
+
+  if (retrievalMode === "semantic") {
+    models.unshift({ role: "embedding", name: getOpenRouterEmbeddingModel() });
+  }
+
+  models.push({ role: "harness", name: harnessModel });
+
+  return models;
 }
 
 function shouldUseLocal(retrievalMode: RetrievalMode) {
@@ -751,9 +800,12 @@ async function parseChatRequest(request: Request) {
     const message = payload.message?.trim() ?? "";
     const retrievalMode = parseRetrievalMode(payload.retrievalMode);
     const webMode = parseWebMode(payload.webMode);
+    const harnessMode = parseHarnessMode(payload.harnessMode);
     const history = normalizeHistory(payload.history);
 
-    return message ? { message, retrievalMode, webMode, history } : null;
+    return message
+      ? { message, retrievalMode, webMode, harnessMode, history }
+      : null;
   } catch {
     return null;
   }
@@ -789,6 +841,10 @@ function parseRetrievalMode(mode: unknown): RetrievalMode {
 
 function parseWebMode(mode: unknown): WebMode {
   return mode === "on" || mode === "off" || mode === "auto" ? mode : "auto";
+}
+
+function parseHarnessMode(mode: unknown): HarnessMode {
+  return mode === "openrouter" || mode === "tensortalk" ? mode : "tensortalk";
 }
 
 function extractJson(text: string): Record<string, unknown> {
@@ -835,6 +891,13 @@ function getPublicModelError(error: unknown) {
     return "OPENROUTER_API_KEY is required for the semantic vector implementation.";
   }
 
+  if (
+    error instanceof Error &&
+    error.message === "Missing OPENROUTER_API_KEY for harness."
+  ) {
+    return "OPENROUTER_API_KEY is required when the harness model is set to OpenRouter Qwen.";
+  }
+
   if (error instanceof Error && error.message === "Missing EXA_API_KEY.") {
     return "EXA_API_KEY is required when official web search is turned on or selected by Auto.";
   }
@@ -870,4 +933,11 @@ function getPublicModelError(error: unknown) {
   }
 
   return "The fine-tuned TensorTalk model could not be reached.";
+}
+
+function isHarnessConfigurationError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message === "Missing OPENROUTER_API_KEY for harness."
+  );
 }

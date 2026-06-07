@@ -1,4 +1,10 @@
-import type { ChatResponse, ChatStage, RetrievalMode, WebMode } from "@/lib/chat";
+import type {
+  ChatResponse,
+  ChatStage,
+  HarnessMode,
+  RetrievalMode,
+  WebMode,
+} from "@/lib/chat";
 
 export type StoredTurn = ChatResponse & {
   id: string;
@@ -9,6 +15,7 @@ export type StoredTurn = ChatResponse & {
   settings: {
     retrievalMode: RetrievalMode;
     webMode: WebMode;
+    harnessMode?: HarnessMode;
   };
 };
 

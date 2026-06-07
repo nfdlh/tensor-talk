@@ -60,6 +60,7 @@ export async function sendChatMessage(
           models: event.models,
           retrievalMode: event.retrievalMode,
           webMode: event.webMode,
+          harnessMode: event.harnessMode,
           trace: event.trace,
           grounding: event.grounding,
           context: event.context,
