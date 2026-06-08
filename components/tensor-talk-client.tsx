@@ -17,8 +17,6 @@ import {
   NetworkIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
-  PanelRightCloseIcon,
-  PanelRightOpenIcon,
   PlusIcon,
   RotateCcwIcon,
   SearchIcon,
@@ -58,6 +56,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import {
   Empty,
   EmptyContent,
@@ -157,16 +162,19 @@ export function TensorTalkClient() {
   const [selectedTurnId, setSelectedTurnId] = useState<string>("");
   const [openEvidenceIds, setOpenEvidenceIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<PanelTab>("evidence");
-  const [pendingTurnId, setPendingTurnId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [detailsCollapsed, setDetailsCollapsed] = useState(false);
+  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
+  const [detailsDrawerDirection, setDetailsDrawerDirection] = useState<
+    "bottom" | "right"
+  >("bottom");
+  const [mobileThreadsOpen, setMobileThreadsOpen] = useState(false);
   const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [copiedMessageKey, setCopiedMessageKey] = useState<string>("");
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
   const latestAnswerEndRef = useRef<HTMLDivElement>(null);
-  const activeRequestRef = useRef<AbortController | null>(null);
+  const activeRequestRef = useRef<Map<string, AbortController>>(new Map());
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStatusRef = useRef<VoiceStatus>("idle");
@@ -185,7 +193,7 @@ export function TensorTalkClient() {
     activeThread?.turns.find((turn) => turn.id === selectedTurnId) ??
     activeThread?.turns.at(-1);
   const latestTurn = activeThread?.turns.at(-1);
-  const isPending = Boolean(pendingTurnId);
+  const isPending = Boolean(activeThread?.turns.some((turn) => turn.streaming));
   const isDark = resolvedTheme === "dark";
   const voiceBlocked =
     voiceStatus === "transcribing" ||
@@ -232,8 +240,11 @@ export function TensorTalkClient() {
   }, []);
 
   useEffect(() => {
+    const requestControllers = activeRequestRef.current;
+
     return () => {
-      activeRequestRef.current?.abort();
+      requestControllers.forEach((controller) => controller.abort());
+      requestControllers.clear();
       stopRecordingTracks(mediaRecorderRef.current);
 
       if (copyFeedbackTimeoutRef.current) {
@@ -245,6 +256,22 @@ export function TensorTalkClient() {
   useEffect(() => {
     voiceStatusRef.current = voiceStatus;
   }, [voiceStatus]);
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 1023px)");
+
+    function closeMobileDrawersOnDesktop(query: MediaQueryListEvent) {
+      if (!query.matches) {
+        setMobileThreadsOpen(false);
+      }
+    }
+
+    mobileQuery.addEventListener("change", closeMobileDrawersOnDesktop);
+
+    return () => {
+      mobileQuery.removeEventListener("change", closeMobileDrawersOnDesktop);
+    };
+  }, []);
 
   useEffect(() => {
     function handleFnKeyDown(event: globalThis.KeyboardEvent) {
@@ -369,8 +396,7 @@ export function TensorTalkClient() {
     const turnId = retryTurnId ?? crypto.randomUUID();
     const draftTurn = createDraftTurn(turnId, question, requestSettings);
     const abortController = new AbortController();
-    activeRequestRef.current = abortController;
-    setPendingTurnId(turnId);
+    activeRequestRef.current.set(turnId, abortController);
     setSelectedTurnId(turnId);
     setActiveTab("evidence");
 
@@ -424,7 +450,6 @@ export function TensorTalkClient() {
         streaming: false,
         error: undefined,
       });
-      setPendingTurnId(null);
       if (retryTurnId) {
         toast.success("Answer retried.");
       }
@@ -440,7 +465,6 @@ export function TensorTalkClient() {
           streaming: false,
           error: "Response stopped.",
         });
-        setPendingTurnId(null);
         toast.success("Answer stopped.");
         return;
       }
@@ -451,19 +475,26 @@ export function TensorTalkClient() {
         streaming: false,
         error: errorMessage,
       });
-      setPendingTurnId(null);
       toast.error(retryTurnId ? "Retry failed." : "Answer failed.", {
         description: errorMessage,
       });
     } finally {
-      if (activeRequestRef.current === abortController) {
-        activeRequestRef.current = null;
-      }
+      activeRequestRef.current.delete(turnId);
     }
   }
 
   function stopCurrentResponse() {
-    activeRequestRef.current?.abort();
+    const streamingTurn =
+      selectedTurn?.streaming && selectedTurn.id
+        ? selectedTurn
+        : activeThread?.turns
+            .slice()
+            .reverse()
+            .find((turn) => turn.streaming);
+
+    if (streamingTurn) {
+      activeRequestRef.current.get(streamingTurn.id)?.abort();
+    }
   }
 
   function updateTurn(
@@ -516,6 +547,8 @@ export function TensorTalkClient() {
       setActiveThreadId(latestThread.id);
       setSelectedTurnId("");
       setOpenEvidenceIds([]);
+      setDetailsDrawerOpen(false);
+      setMobileThreadsOpen(false);
       setMessage("");
       return;
     }
@@ -526,6 +559,8 @@ export function TensorTalkClient() {
     setActiveThreadId(thread.id);
     setSelectedTurnId("");
     setOpenEvidenceIds([]);
+    setDetailsDrawerOpen(false);
+    setMobileThreadsOpen(false);
     setMessage("");
     void saveThread(thread)
       .then(() => {
@@ -542,6 +577,8 @@ export function TensorTalkClient() {
     setActiveThreadId(threadId);
     setSelectedTurnId(thread?.selectedTurnId ?? thread?.turns.at(-1)?.id ?? "");
     setOpenEvidenceIds([]);
+    setDetailsDrawerOpen(false);
+    setMobileThreadsOpen(false);
   }
 
   function removeThread(threadId: string) {
@@ -554,6 +591,8 @@ export function TensorTalkClient() {
     if (threadId === activeThreadId) {
       setActiveThreadId(nextThreads[0].id);
       setSelectedTurnId(nextThreads[0].selectedTurnId ?? "");
+      setDetailsDrawerOpen(false);
+      setMobileThreadsOpen(false);
       persistenceTasks.push(saveThread(nextThreads[0]));
     }
 
@@ -584,6 +623,8 @@ export function TensorTalkClient() {
     setActiveThreadId(thread.id);
     setSelectedTurnId("");
     setOpenEvidenceIds([]);
+    setDetailsDrawerOpen(false);
+    setMobileThreadsOpen(false);
     setMessage("");
 
     void Promise.all([
@@ -812,13 +853,22 @@ export function TensorTalkClient() {
   function selectTurnEvidence(turn: StoredTurn, evidenceId?: string) {
     setSelectedTurnId(turn.id);
     setActiveTab("evidence");
+    setDetailsDrawerDirection(getDetailsDrawerDirection());
+    setDetailsDrawerOpen(true);
     setOpenEvidenceIds(
       evidenceId
         ? [evidenceId]
         : turn.evidence.length > 0
           ? [turn.evidence[0].kb_id]
-          : [],
+        : [],
     );
+  }
+
+  function selectTurnTrace(turn: StoredTurn) {
+    setSelectedTurnId(turn.id);
+    setActiveTab("trace");
+    setDetailsDrawerDirection(getDetailsDrawerDirection());
+    setDetailsDrawerOpen(true);
   }
 
   function updateThreadTitle(threadId: string, title: string) {
@@ -885,20 +935,16 @@ export function TensorTalkClient() {
     <main className="h-dvh min-h-0 overflow-hidden bg-muted/30 text-foreground">
       <div
         className={cn(
-          "mx-auto grid h-full min-h-0 max-w-[1440px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden p-4 lg:grid-rows-none",
+          "mx-auto grid h-full min-h-0 max-w-[1440px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4 lg:grid-rows-none",
           sidebarCollapsed
-            ? detailsCollapsed
-              ? "lg:grid-cols-[72px_minmax(0,1fr)_56px]"
-              : "lg:grid-cols-[72px_minmax(0,1fr)_380px]"
-            : detailsCollapsed
-              ? "lg:grid-cols-[280px_minmax(0,1fr)_56px]"
-              : "lg:grid-cols-[280px_minmax(0,1fr)_380px]",
+            ? "lg:grid-cols-[72px_minmax(0,1fr)]"
+            : "lg:grid-cols-[280px_minmax(0,1fr)]",
         )}
       >
-        <Card className="max-h-[calc(100dvh-2rem)] max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:py-3 lg:h-[calc(100dvh-2rem)]">
+        <Card className="max-h-[calc(100dvh-1.5rem)] py-2 max-lg:sticky max-lg:top-0 max-lg:z-20 lg:h-[calc(100dvh-2rem)] lg:max-h-[calc(100dvh-2rem)] lg:py-6">
           <CardHeader
             className={cn(
-              "max-lg:px-3",
+              "max-lg:px-3 max-lg:py-0",
               sidebarCollapsed && "items-center px-2",
             )}
           >
@@ -949,6 +995,40 @@ export function TensorTalkClient() {
                   type="button"
                   variant="outline"
                   size="icon"
+                  className="lg:hidden"
+                  aria-label="Open threads"
+                  title="Threads"
+                  onClick={() => setMobileThreadsOpen(true)}
+                >
+                  <PanelLeftOpenIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="lg:hidden"
+                  aria-label="New chat"
+                  title="New chat"
+                  onClick={startNewThread}
+                >
+                  <PlusIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="lg:hidden"
+                  nativeButton={false}
+                  aria-label="Visualize Vector"
+                  title="Visualize Vector"
+                  render={<Link href="/embeddings" />}
+                >
+                  <NetworkIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
                   className="hidden lg:inline-flex"
                   aria-label={
                     sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
@@ -979,7 +1059,7 @@ export function TensorTalkClient() {
           </CardHeader>
           <CardContent
             className={cn(
-              "flex min-h-0 flex-1 flex-col gap-4 max-lg:px-3 max-lg:pb-3",
+              "flex min-h-0 flex-1 flex-col gap-4 max-lg:hidden max-lg:px-3 max-lg:pb-3",
               sidebarCollapsed && "items-center px-2",
             )}
           >
@@ -1086,16 +1166,16 @@ export function TensorTalkClient() {
         </Card>
 
         <section className="flex min-h-0 flex-col gap-3 overflow-hidden lg:h-[calc(100dvh-2rem)]">
-          <Card size="sm" className="min-h-0 flex-1">
-            <CardHeader className="pb-0">
+          <Card size="sm" className="mx-1 min-h-0 flex-1">
+            <CardHeader className="pb-0 max-sm:px-3">
               <CardTitle>Conversation</CardTitle>
-              <CardDescription>
+              <CardDescription className="max-sm:hidden">
                 Select any answer to inspect its Evidence and Trace.
               </CardDescription>
             </CardHeader>
-            <CardContent className="min-h-0 flex-1">
+            <CardContent className="min-h-0 flex-1 max-sm:px-3">
               <ScrollArea className="h-full min-h-0">
-                <div className="flex min-w-0 flex-col gap-4 py-1 pr-6 pl-4">
+                <div className="flex min-w-0 flex-col gap-4 py-1 pr-3 pl-1 sm:pr-6 sm:pl-4">
                   {!activeThread?.turns.length ? (
                     <Empty className="min-h-56 border">
                       <EmptyHeader>
@@ -1126,7 +1206,7 @@ export function TensorTalkClient() {
                       key={turn.id}
                       className="flex min-w-0 flex-col gap-3"
                     >
-                      <div className="group/question ml-auto flex max-w-[78%] items-start gap-1">
+                      <div className="group/question ml-auto flex max-w-[92%] items-start gap-1 sm:max-w-[78%]">
                         <MessageCopyButton
                           copied={copiedMessageKey === `question-${turn.id}`}
                           label="Copy question"
@@ -1156,7 +1236,7 @@ export function TensorTalkClient() {
                       </div>
                       <div
                         className={cn(
-                          "group/answer box-border w-full max-w-[88%] rounded-lg border bg-card p-4",
+                          "group/answer box-border w-full max-w-full rounded-lg border bg-card p-3 sm:max-w-[88%] sm:p-4",
                           selectedTurn?.id === turn.id && "ring-2 ring-ring/30",
                         )}
                       >
@@ -1183,8 +1263,40 @@ export function TensorTalkClient() {
                                   `answer-${turn.id}`,
                                 )
                               }
-                              className="opacity-0 group-hover/answer:opacity-100"
+                              className="opacity-100 sm:opacity-0 sm:group-hover/answer:opacity-100"
                             />
+                            <Button
+                              type="button"
+                              variant={
+                                selectedTurn?.id === turn.id &&
+                                activeTab === "evidence"
+                                  ? "secondary"
+                                  : "ghost"
+                              }
+                              size="icon"
+                              className="size-8"
+                              aria-label="Open evidence"
+                              title="Evidence"
+                              onClick={() => selectTurnEvidence(turn)}
+                            >
+                              <FileTextIcon className="size-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={
+                                selectedTurn?.id === turn.id &&
+                                activeTab === "trace"
+                                  ? "secondary"
+                                  : "ghost"
+                              }
+                              size="icon"
+                              className="size-8"
+                              aria-label="Open trace"
+                              title="Trace"
+                              onClick={() => selectTurnTrace(turn)}
+                            >
+                              <LibraryIcon className="size-4" />
+                            </Button>
                             <Button
                               type="button"
                               variant="ghost"
@@ -1270,45 +1382,6 @@ export function TensorTalkClient() {
               </ScrollArea>
             </CardContent>
           </Card>
-
-          {selectedTurn ? (
-            <Card size="sm" className="min-h-0 shrink-0 lg:hidden">
-              <CardContent className="flex min-h-0 flex-col gap-2">
-                <div className="grid grid-cols-2 rounded-md border p-1">
-                  <Button
-                    type="button"
-                    variant={activeTab === "evidence" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab("evidence")}
-                  >
-                    <FileTextIcon data-icon="inline-start" />
-                    Evidence
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={activeTab === "trace" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab("trace")}
-                  >
-                    <LibraryIcon data-icon="inline-start" />
-                    Trace
-                  </Button>
-                </div>
-
-                {activeTab === "evidence" ? (
-                  <EvidencePanel
-                    compact
-                    evidence={selectedTurn.evidence}
-                    openEvidenceIds={openEvidenceIds}
-                    onOpenEvidenceChange={setOpenEvidenceIds}
-                    pending={Boolean(selectedTurn.streaming)}
-                  />
-                ) : (
-                  <TracePanel compact turn={selectedTurn} />
-                )}
-              </CardContent>
-            </Card>
-          ) : null}
 
           <div className="shrink-0 px-1 pb-1">
             <Card size="sm">
@@ -1430,7 +1503,7 @@ export function TensorTalkClient() {
                         </div>
                         <InputGroupAddon align="block-end" className="border-t">
                           <div className="flex w-full flex-col gap-1">
-                            <div className="flex w-full flex-wrap items-center gap-2">
+                            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                               <Select
                                 items={[
                                   {
@@ -1462,7 +1535,7 @@ export function TensorTalkClient() {
                                 <SelectTrigger
                                   aria-label="Retrieval mode"
                                   size="sm"
-                                  className="min-w-32 shrink-0"
+                                  className="w-full min-w-0 sm:w-fit sm:min-w-32 sm:shrink-0"
                                 >
                                   <span
                                     data-slot="select-value"
@@ -1536,6 +1609,7 @@ export function TensorTalkClient() {
                                 harnessMode={harnessMode}
                                 thinkingMode={thinkingMode}
                                 disabled={false}
+                                triggerClassName="w-full min-w-0 sm:w-auto sm:min-w-44"
                                 onWebModeChange={setWebMode}
                                 onWebTrustModeChange={setWebTrustMode}
                                 onHarnessModeChange={setHarnessMode}
@@ -1553,103 +1627,206 @@ export function TensorTalkClient() {
           </div>
         </section>
 
-        <Card className="hidden max-h-[calc(100dvh-2rem)] lg:flex lg:h-[calc(100dvh-2rem)]">
-          {detailsCollapsed ? (
-            <CardContent className="flex h-full flex-col items-center gap-2 px-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Expand details sidebar"
-                title="Expand details sidebar"
-                onClick={() => setDetailsCollapsed(false)}
-              >
-                <PanelRightOpenIcon />
-              </Button>
-              <Separator className="my-1 w-8" />
-              <Button
-                type="button"
-                variant={activeTab === "evidence" ? "secondary" : "ghost"}
-                size="icon"
-                aria-label="Evidence"
-                title="Evidence"
-                onClick={() => setActiveTab("evidence")}
-              >
-                <FileTextIcon className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant={activeTab === "trace" ? "secondary" : "ghost"}
-                size="icon"
-                aria-label="Trace"
-                title="Trace"
-                onClick={() => setActiveTab("trace")}
-              >
-                <LibraryIcon className="size-4" />
-              </Button>
-            </CardContent>
-          ) : (
-            <>
-              <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                <div className="min-w-0">
-                  <CardTitle>
-                    {activeTab === "evidence" ? "Evidence" : "Trace"}
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedTurn
-                      ? "Details for the selected message."
-                      : "Select a message to inspect its support."}
-                  </CardDescription>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Collapse details sidebar"
-                  title="Collapse details sidebar"
-                  onClick={() => setDetailsCollapsed(true)}
+      </div>
+      <DetailsDrawer
+        open={detailsDrawerOpen}
+        direction={detailsDrawerDirection}
+        onOpenChange={setDetailsDrawerOpen}
+        activeTab={activeTab}
+        selectedTurn={selectedTurn}
+        openEvidenceIds={openEvidenceIds}
+        onOpenEvidenceChange={setOpenEvidenceIds}
+        onTabChange={setActiveTab}
+      />
+      <MobileThreadsDrawer
+        open={mobileThreadsOpen}
+        onOpenChange={setMobileThreadsOpen}
+        threads={threads}
+        activeThreadId={activeThread?.id}
+        loadError={loadError}
+        onNewThread={startNewThread}
+        onSelectThread={selectThread}
+        onRemoveThread={removeThread}
+        onRemoveAllThreads={removeAllThreads}
+      />
+    </main>
+  );
+}
+
+function MobileThreadsDrawer({
+  open,
+  onOpenChange,
+  threads,
+  activeThreadId,
+  loadError,
+  onNewThread,
+  onSelectThread,
+  onRemoveThread,
+  onRemoveAllThreads,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  threads: StoredThread[];
+  activeThreadId?: string;
+  loadError: string | null;
+  onNewThread: () => void;
+  onSelectThread: (threadId: string) => void;
+  onRemoveThread: (threadId: string) => void;
+  onRemoveAllThreads: () => void;
+}) {
+  return (
+    <Drawer direction="left" open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="lg:hidden">
+        <DrawerHeader className="text-left">
+          <DrawerTitle>Threads</DrawerTitle>
+          <DrawerDescription>Saved TensorTalk conversations.</DrawerDescription>
+        </DrawerHeader>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
+          <Button type="button" className="w-full" onClick={onNewThread}>
+            <PlusIcon data-icon="inline-start" />
+            New chat
+          </Button>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              History
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Delete all threads"
+              title="Delete all threads"
+              onClick={onRemoveAllThreads}
+            >
+              <Trash2Icon className="size-3.5" />
+            </Button>
+          </div>
+          {loadError ? (
+            <p className="rounded-md border px-2 py-1.5 text-xs text-muted-foreground">
+              {loadError}
+            </p>
+          ) : null}
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="flex flex-col gap-1 pr-3">
+              {threads.map((thread) => (
+                <div
+                  key={thread.id}
+                  className="group flex min-w-0 items-center gap-1"
                 >
-                  <PanelRightCloseIcon />
-                </Button>
-              </CardHeader>
-              <CardContent className="flex min-h-0 flex-col gap-3">
-                <div className="grid grid-cols-2 rounded-md border p-1">
                   <Button
                     type="button"
-                    variant={activeTab === "evidence" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab("evidence")}
+                    variant={thread.id === activeThreadId ? "secondary" : "ghost"}
+                    className="min-w-0 flex-1 justify-start"
+                    onClick={() => onSelectThread(thread.id)}
                   >
                     <FileTextIcon data-icon="inline-start" />
-                    Evidence
+                    <span className="truncate">{thread.title}</span>
                   </Button>
                   <Button
                     type="button"
-                    variant={activeTab === "trace" ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveTab("trace")}
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    aria-label={`Delete ${thread.title}`}
+                    title="Delete thread"
+                    onClick={() => onRemoveThread(thread.id)}
                   >
-                    <LibraryIcon data-icon="inline-start" />
-                    Trace
+                    <Trash2Icon className="size-4" />
                   </Button>
                 </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
 
-                {activeTab === "evidence" ? (
-                  <EvidencePanel
-                    evidence={selectedTurn?.evidence ?? []}
-                    openEvidenceIds={openEvidenceIds}
-                    onOpenEvidenceChange={setOpenEvidenceIds}
-                    pending={Boolean(selectedTurn?.streaming)}
-                  />
-                ) : (
-                  <TracePanel turn={selectedTurn} />
-                )}
-              </CardContent>
-            </>
+function getDetailsDrawerDirection(): "bottom" | "right" {
+  return window.matchMedia("(min-width: 1024px)").matches ? "right" : "bottom";
+}
+
+function DetailsTabControls({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: PanelTab;
+  onTabChange: (tab: PanelTab) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 rounded-md border p-1">
+      <Button
+        type="button"
+        variant={activeTab === "evidence" ? "secondary" : "ghost"}
+        size="sm"
+        onClick={() => onTabChange("evidence")}
+      >
+        <FileTextIcon data-icon="inline-start" />
+        Evidence
+      </Button>
+      <Button
+        type="button"
+        variant={activeTab === "trace" ? "secondary" : "ghost"}
+        size="sm"
+        onClick={() => onTabChange("trace")}
+      >
+        <LibraryIcon data-icon="inline-start" />
+        Trace
+      </Button>
+    </div>
+  );
+}
+
+function DetailsDrawer({
+  open,
+  direction,
+  onOpenChange,
+  activeTab,
+  selectedTurn,
+  openEvidenceIds,
+  onOpenEvidenceChange,
+  onTabChange,
+}: {
+  open: boolean;
+  direction: "bottom" | "right";
+  onOpenChange: (open: boolean) => void;
+  activeTab: PanelTab;
+  selectedTurn?: StoredTurn;
+  openEvidenceIds: string[];
+  onOpenEvidenceChange: (openEvidenceIds: string[]) => void;
+  onTabChange: (tab: PanelTab) => void;
+}) {
+  return (
+    <Drawer direction={direction} open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="lg:w-[420px] lg:max-w-[420px]">
+        <DrawerHeader className="text-left">
+          <DrawerTitle>
+            {activeTab === "evidence" ? "Evidence" : "Trace"}
+          </DrawerTitle>
+          <DrawerDescription>
+            {selectedTurn
+              ? "Details for the selected message."
+              : "Select a message to inspect its support."}
+          </DrawerDescription>
+        </DrawerHeader>
+        <div className="flex min-h-0 flex-col gap-3 px-4 pb-4">
+          <DetailsTabControls activeTab={activeTab} onTabChange={onTabChange} />
+          {activeTab === "evidence" ? (
+            <EvidencePanel
+              mobile
+              evidence={selectedTurn?.evidence ?? []}
+              openEvidenceIds={openEvidenceIds}
+              onOpenEvidenceChange={onOpenEvidenceChange}
+              pending={Boolean(selectedTurn?.streaming)}
+            />
+          ) : (
+            <TracePanel mobile turn={selectedTurn} />
           )}
-        </Card>
-      </div>
-    </main>
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -1782,6 +1959,7 @@ function RouteSettingsCombobox({
   harnessMode,
   thinkingMode,
   disabled,
+  triggerClassName,
   onWebModeChange,
   onWebTrustModeChange,
   onHarnessModeChange,
@@ -1792,6 +1970,7 @@ function RouteSettingsCombobox({
   harnessMode: HarnessMode;
   thinkingMode: ThinkingMode;
   disabled: boolean;
+  triggerClassName?: string;
   onWebModeChange: (mode: WebMode) => void;
   onWebTrustModeChange: (mode: WebTrustMode) => void;
   onHarnessModeChange: (mode: HarnessMode) => void;
@@ -1805,7 +1984,7 @@ function RouteSettingsCombobox({
             type="button"
             variant="outline"
             size="sm"
-            className="min-w-44 justify-between"
+            className={cn("min-w-44 justify-between", triggerClassName)}
             disabled={disabled}
             aria-label="Route controls"
           />
@@ -2160,12 +2339,14 @@ function EvidencePanel({
   onOpenEvidenceChange,
   pending,
   compact = false,
+  mobile = false,
 }: {
   evidence: Evidence[];
   openEvidenceIds: string[];
   onOpenEvidenceChange: (openEvidenceIds: string[]) => void;
   pending: boolean;
   compact?: boolean;
+  mobile?: boolean;
 }) {
   if (pending && evidence.length === 0) {
     return (
@@ -2195,7 +2376,15 @@ function EvidencePanel({
   }
 
   return (
-    <ScrollArea className={compact ? "h-36" : "h-[calc(100dvh-13rem)]"}>
+    <ScrollArea
+      className={cn(
+        mobile
+          ? "h-[min(56dvh,34rem)]"
+          : compact
+            ? "h-36"
+            : "h-[calc(100dvh-13rem)]",
+      )}
+    >
       <Accordion
         key={evidence[0]?.kb_id}
         className="pr-3"
@@ -2264,9 +2453,11 @@ function EvidencePanel({
 function TracePanel({
   turn,
   compact = false,
+  mobile = false,
 }: {
   turn?: StoredTurn;
   compact?: boolean;
+  mobile?: boolean;
 }) {
   if (!turn?.trace) {
     return (
@@ -2287,7 +2478,15 @@ function TracePanel({
   const trace = turn.trace;
 
   return (
-    <ScrollArea className={compact ? "h-36" : "h-[calc(100dvh-13rem)]"}>
+    <ScrollArea
+      className={
+        mobile
+          ? "h-[min(56dvh,34rem)]"
+          : compact
+            ? "h-36"
+            : "h-[calc(100dvh-13rem)]"
+      }
+    >
       <div className="flex flex-col gap-4 pr-3">
         <TraceSummary trace={trace} />
         <TracingSteps stages={turn.stages ?? trace.stages ?? EMPTY_STAGES} />
