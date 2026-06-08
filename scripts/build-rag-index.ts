@@ -38,10 +38,10 @@ const OPENROUTER_BASE_URL =
   process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 const EMBEDDING_MODEL =
   process.env.OPENROUTER_EMBEDDING_MODEL ?? "baai/bge-base-en-v1.5";
-const BATCH_SIZE = Number(process.env.RAG_INDEX_BATCH_SIZE ?? 8);
-const MAX_EMBEDDING_TEXT_CHARS = Number(
-  process.env.RAG_INDEX_MAX_TEXT_CHARS ?? 3000,
-);
+const BATCH_SIZE = Number(process.env.RAG_INDEX_BATCH_SIZE ?? 96);
+const MAX_EMBEDDING_TEXT_CHARS = process.env.RAG_INDEX_MAX_TEXT_CHARS
+  ? Number(process.env.RAG_INDEX_MAX_TEXT_CHARS)
+  : undefined;
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -145,7 +145,7 @@ console.log(`Wrote ${path.relative(PROJECT_ROOT, DB_PATH)}`);
 function getRetrievalText(row: HandbookIndexRow) {
   const text = row.retrieval_text || row.source_text || "";
 
-  return text.length > MAX_EMBEDDING_TEXT_CHARS
+  return MAX_EMBEDDING_TEXT_CHARS && text.length > MAX_EMBEDDING_TEXT_CHARS
     ? text.slice(0, MAX_EMBEDDING_TEXT_CHARS)
     : text;
 }

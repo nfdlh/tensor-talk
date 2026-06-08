@@ -38,6 +38,8 @@ Vector store: SQLite
 Similarity: inner product after embedding normalization
 Top-k retrieval: 3
 Rerank pool: 12
+Index batch size: 96
+Embedding text cap: none by default
 Rerank: dense score + metadata bonuses
 ```
 
@@ -50,6 +52,12 @@ pnpm rag:index
 The build script reads `data/UM_RAG_Knowledge_Base.jsonl`, embeds each
 `retrieval_text` bundle with OpenRouter, normalizes the vectors, and writes
 `data/UM_RAG_Vectors.sqlite`.
+
+`RAG_INDEX_BATCH_SIZE` defaults to `96` to match the TensorCat notebook. The
+indexer does not truncate `retrieval_text` before embedding unless
+`RAG_INDEX_MAX_TEXT_CHARS` is set. If a provider returns an invalid batch, the
+script still splits the batch, and a failing single long row can be retried with
+a shorter text slice as a provider fallback.
 
 At request time, `lib/rag.ts` embeds the student question through OpenRouter,
 loads vectors from SQLite, ranks by normalized inner product, then applies the

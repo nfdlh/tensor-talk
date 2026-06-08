@@ -104,10 +104,10 @@ Top-k retrieval: 3
 Rerank: dense score + metadata-aware rerank
 ```
 
-This app keeps the same embedding model, normalized inner-product retrieval,
-top-k 3 semantic evidence, and metadata-aware rerank behavior, but stores
-vectors in `data/UM_RAG_Vectors.sqlite` instead of FAISS so the Next.js API can
-load the index in the server runtime.
+This app keeps the same embedding model, index batch size, normalized
+inner-product retrieval, top-k 3 semantic evidence, and metadata-aware rerank
+behavior, but stores vectors in `data/UM_RAG_Vectors.sqlite` instead of FAISS so
+the Next.js API can load the index in the server runtime.
 
 The index builder embeds `retrieval_text`, stores the complete row JSON beside
 the vector, records the embedding model in `rag_meta`, and validates the runtime
