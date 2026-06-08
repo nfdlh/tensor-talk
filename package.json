@@ -22,6 +22,7 @@
     "ai": "^6.0.197",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "embedding-atlas": "^0.21.0",
     "ky": "^2.0.2",
     "lucide-react": "^1.17.0",
     "minisearch": "^7.2.0",

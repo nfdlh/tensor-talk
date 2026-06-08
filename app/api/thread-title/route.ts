@@ -28,17 +28,26 @@ export async function POST(request: Request) {
       baseURL: getOpenRouterBaseUrl(),
       apiKey,
     });
+    const prompt = payload.answer
+      ? [
+          "Create a short chat title from this question and answer.",
+          "Use 3 to 6 words. Return plain text only.",
+          "",
+          `Question: ${payload.question}`,
+          `Answer: ${payload.answer.slice(0, 600)}`,
+        ].join("\n")
+      : [
+          "Create a short chat title from this question.",
+          "Use 3 to 6 words. Return plain text only.",
+          "",
+          `Question: ${payload.question}`,
+        ].join("\n");
+
     const { text } = await generateText({
       model: openrouter(
         process.env.THREAD_TITLE_MODEL ?? DEFAULT_THREAD_TITLE_MODEL,
       ),
-      prompt: [
-        "Create a short chat title from this question and answer.",
-        "Use 3 to 6 words. Return plain text only.",
-        "",
-        `Question: ${payload.question}`,
-        `Answer: ${payload.answer.slice(0, 600)}`,
-      ].join("\n"),
+      prompt,
       maxOutputTokens: 24,
       temperature: 0.2,
       timeout: TITLE_TIMEOUT_MS,

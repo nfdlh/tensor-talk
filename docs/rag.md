@@ -12,8 +12,10 @@ The shared data source is `data/UM_RAG_Knowledge_Base.jsonl`.
 flowchart LR
   Question["Student question"]
   Mode["Retrieval mode"]
-  Semantic["Semantic vectors<br/>OpenRouter embeddings"]
+  Semantic["Semantic (BGE)<br/>OpenRouter embeddings"]
+  Qwen["Semantic (Qwen3 8B)<br/>experimental"]
   SQLite["SQLite vector store<br/>data/UM_RAG_Vectors.sqlite"]
+  QwenSQLite["SQLite vector store<br/>data/UM_RAG_Vectors_Qwen3.sqlite"]
   Lexical["MiniSearch<br/>fuzzy + prefix"]
   None["No RAG<br/>skip local retrieval"]
   Evidence["Evidence chunks<br/>semantic top 3, lexical top 4"]
@@ -21,6 +23,7 @@ flowchart LR
 
   Question --> Mode
   Mode --> Semantic --> SQLite --> Evidence
+  Mode --> Qwen --> QwenSQLite --> Evidence
   Mode --> Lexical --> Evidence
   Mode --> None
   Evidence --> Prompt
@@ -43,15 +46,37 @@ Embedding text cap: none by default
 Rerank: dense score + metadata bonuses
 ```
 
+The experimental Qwen3 path uses the same local KB and rerank flow, but stores a
+separate vector index:
+
+```text
+Embedding model: qwen/qwen3-embedding-8b
+Embedding provider: OpenRouter embeddings API
+Vector store: SQLite
+SQLite file: data/UM_RAG_Vectors_Qwen3.sqlite
+Query format: Qwen3 retrieval instruction + student query
+Document format: raw retrieval_text
+```
+
 Build the SQLite vector store after setting `OPENROUTER_API_KEY`:
 
 ```bash
 pnpm rag:index
 ```
 
+Build the experimental Qwen3 index with:
+
+```bash
+RAG_INDEX_PROFILE=qwen3 pnpm rag:index
+```
+
+The Qwen3 selector is hidden by default. Set
+`NEXT_PUBLIC_ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL=true` to expose it in the UI and
+allow `semantic-qwen` requests.
+
 The build script reads `data/UM_RAG_Knowledge_Base.jsonl`, embeds each
 `retrieval_text` bundle with OpenRouter, normalizes the vectors, and writes
-`data/UM_RAG_Vectors.sqlite`.
+the selected SQLite index.
 
 `RAG_INDEX_BATCH_SIZE` defaults to `96` to match the TensorCat notebook. The
 indexer does not truncate `retrieval_text` before embedding unless

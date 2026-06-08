@@ -14,6 +14,7 @@ import {
   LoaderCircleIcon,
   MicIcon,
   MoonIcon,
+  NetworkIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
@@ -27,6 +28,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
   FormEvent,
@@ -85,11 +87,12 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { sendChatMessage } from "@/lib/chat-client";
 import type {
   ChatResponse,
@@ -112,6 +115,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type PanelTab = "evidence" | "trace";
+type RagRetrievalMode = Exclude<RetrievalMode, "none">;
 
 const EMPTY_STAGES: ChatStage[] = [
   { id: "planning", label: "Planning route", status: "pending" },
@@ -127,6 +131,8 @@ const COPY_FEEDBACK_MS = 1600;
 const CLIENT_MAX_CONTEXT_TOKENS = 8192;
 const CLIENT_DEFAULT_OUTPUT_TOKENS = 640;
 const CLIENT_MORE_OUTPUT_TOKENS = 1024;
+const ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL =
+  process.env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL === "true";
 const VOICE_INPUT_MIME_TYPES = [
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -139,7 +145,9 @@ type VoiceStatus = "idle" | "recording" | "transcribing";
 
 export function TensorTalkClient() {
   const [message, setMessage] = useState("");
-  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("semantic");
+  const [ragEnabled, setRagEnabled] = useState(true);
+  const [retrievalMode, setRetrievalMode] =
+    useState<RagRetrievalMode>("semantic");
   const [webMode, setWebMode] = useState<WebMode>("auto");
   const [webTrustMode, setWebTrustMode] = useState<WebTrustMode>("broad");
   const [harnessMode, setHarnessMode] = useState<HarnessMode>("tensortalk");
@@ -326,8 +334,12 @@ export function TensorTalkClient() {
     }
 
     setMessage("");
+    const effectiveRetrievalMode: RetrievalMode = ragEnabled
+      ? retrievalMode
+      : "none";
+
     await sendQuestion(question, {
-      retrievalMode,
+      retrievalMode: effectiveRetrievalMode,
       webMode,
       webTrustMode,
       harnessMode,
@@ -372,6 +384,14 @@ export function TensorTalkClient() {
         : [...thread.turns, draftTurn],
     }));
 
+    if (
+      !retryTurnId &&
+      activeThread.turns.length === 0 &&
+      activeThread.title === "New chat"
+    ) {
+      void maybeGenerateThreadTitle(question, activeThread.id);
+    }
+
     try {
       const response = await sendChatMessage(
         {
@@ -414,7 +434,6 @@ export function TensorTalkClient() {
           behavior: "smooth",
         });
       });
-      maybeGenerateThreadTitle(question, response);
     } catch (error) {
       if (isAbortError(error)) {
         updateTurn(turnId, {
@@ -802,11 +821,40 @@ export function TensorTalkClient() {
     );
   }
 
-  async function maybeGenerateThreadTitle(
-    question: string,
-    response: ChatResponse,
-  ) {
-    const thread = threads.find((item) => item.id === activeThreadId);
+  function updateThreadTitle(threadId: string, title: string) {
+    let nextThread: StoredThread | null = null;
+
+    setThreads((current) => {
+      const nextThreads = current.map((thread) => {
+        if (thread.id !== threadId || thread.title !== "New chat") {
+          return thread;
+        }
+
+        nextThread = {
+          ...thread,
+          title,
+          updatedAt: Date.now(),
+        };
+
+        return nextThread;
+      });
+
+      return nextThreads.sort(
+        (left, right) => right.updatedAt - left.updatedAt,
+      );
+    });
+
+    queueMicrotask(() => {
+      if (nextThread) {
+        void saveThread(nextThread).catch(() => {
+          toast.error("Could not save thread title.");
+        });
+      }
+    });
+  }
+
+  async function maybeGenerateThreadTitle(question: string, threadId: string) {
+    const thread = threads.find((item) => item.id === threadId);
 
     if (!thread || thread.turns.length > 0 || thread.title !== "New chat") {
       return;
@@ -816,7 +864,7 @@ export function TensorTalkClient() {
       const titleResponse = await fetch("/api/thread-title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, answer: response.answer }),
+        body: JSON.stringify({ question }),
       });
       const body = (await titleResponse.json().catch(() => null)) as {
         title?: string;
@@ -827,15 +875,9 @@ export function TensorTalkClient() {
         return;
       }
 
-      updateActiveThread((current) => ({
-        ...current,
-        title,
-      }));
+      updateThreadTitle(threadId, title);
     } catch {
-      updateActiveThread((current) => ({
-        ...current,
-        title: fallbackTitle(question),
-      }));
+      updateThreadTitle(threadId, fallbackTitle(question));
     }
   }
 
@@ -929,7 +971,7 @@ export function TensorTalkClient() {
           </CardHeader>
           <CardContent
             className={cn(
-              "flex flex-col gap-4 max-lg:px-3 max-lg:pb-3",
+              "flex min-h-0 flex-1 flex-col gap-4 max-lg:px-3 max-lg:pb-3",
               sidebarCollapsed && "items-center px-2",
             )}
           >
@@ -975,7 +1017,7 @@ export function TensorTalkClient() {
                   {loadError}
                 </p>
               ) : null}
-              <ScrollArea className="h-[calc(100dvh-16rem)]">
+              <ScrollArea className="min-h-0 flex-1">
                 <div className="flex flex-col gap-1 pr-3">
                   {threads.map((thread) => (
                     <div
@@ -1009,6 +1051,29 @@ export function TensorTalkClient() {
                 </div>
               </ScrollArea>
             </section>
+
+            <div
+              className={cn(
+                "mt-auto flex flex-col gap-3",
+                sidebarCollapsed ? "items-center" : "w-full",
+              )}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size={sidebarCollapsed ? "icon-lg" : "default"}
+                className={cn(!sidebarCollapsed && "w-full justify-start")}
+                nativeButton={false}
+                aria-label="Visualize Vector"
+                title="Visualize Vector"
+                render={<Link href="/embeddings" />}
+              >
+                <NetworkIcon data-icon="inline-start" />
+                <span className={cn(sidebarCollapsed && "hidden")}>
+                  Visualize Vector
+                </span>
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -1174,12 +1239,6 @@ export function TensorTalkClient() {
                           </Badge>
                           <Badge variant="outline">
                             {getWebLabel(turn.settings.webMode)}
-                          </Badge>
-                          <Badge variant="outline">
-                            {getWebTrustLabel(turn.settings.webTrustMode)}
-                          </Badge>
-                          <Badge variant="outline">
-                            {getHarnessLabel(turn.settings.harnessMode)}
                           </Badge>
                           {turn.grounding ? (
                             <Badge variant="secondary">
@@ -1366,16 +1425,27 @@ export function TensorTalkClient() {
                             <div className="flex w-full flex-wrap items-center gap-2">
                               <Select
                                 items={[
-                                  { label: "Semantic", value: "semantic" },
+                                  {
+                                    label: "Semantic (BGE)",
+                                    value: "semantic",
+                                  },
                                   { label: "Lexical", value: "lexical" },
-                                  { label: "No RAG", value: "none" },
+                                  ...(ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL
+                                    ? [
+                                        {
+                                          label: "Semantic (Qwen3 8B)",
+                                          value: "semantic-qwen",
+                                        },
+                                      ]
+                                    : []),
                                 ]}
                                 value={retrievalMode}
                                 onValueChange={(value) => {
                                   if (
                                     value === "semantic" ||
-                                    value === "lexical" ||
-                                    value === "none"
+                                    (ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL &&
+                                      value === "semantic-qwen") ||
+                                    value === "lexical"
                                   ) {
                                     setRetrievalMode(value);
                                   }
@@ -1386,18 +1456,70 @@ export function TensorTalkClient() {
                                   size="sm"
                                   className="min-w-32 shrink-0"
                                 >
-                                  <SelectValue />
+                                  <span
+                                    data-slot="select-value"
+                                    className="flex flex-1 items-center gap-1.5 text-left"
+                                  >
+                                    {ragEnabled
+                                      ? getRetrievalLabel(retrievalMode)
+                                      : "No RAG"}
+                                  </span>
                                 </SelectTrigger>
-                                <SelectContent align="start">
+                                <SelectContent
+                                  align="start"
+                                  className="min-w-72"
+                                >
+                                  <div
+                                    className="flex items-center justify-between gap-4 px-2 py-2 text-sm"
+                                    onClick={(event) => event.stopPropagation()}
+                                    onPointerDown={(event) =>
+                                      event.stopPropagation()
+                                    }
+                                  >
+                                    <span>R.A.G</span>
+                                    <Switch
+                                      id="rag-toggle"
+                                      size="sm"
+                                      checked={ragEnabled}
+                                      onCheckedChange={setRagEnabled}
+                                      aria-label="Enable RAG"
+                                    />
+                                  </div>
+                                  <SelectSeparator />
                                   <SelectGroup>
-                                    <SelectItem value="semantic">
-                                      Semantic
+                                    <SelectItem
+                                      value="semantic"
+                                      disabled={!ragEnabled}
+                                    >
+                                      Semantic (BGE)
                                     </SelectItem>
-                                    <SelectItem value="lexical">
+                                    <SelectItem
+                                      value="lexical"
+                                      disabled={!ragEnabled}
+                                    >
                                       Lexical
                                     </SelectItem>
-                                    <SelectItem value="none">No RAG</SelectItem>
                                   </SelectGroup>
+                                  {ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL ? (
+                                    <>
+                                      <SelectSeparator />
+                                      <SelectGroup>
+                                        <SelectItem
+                                          value="semantic-qwen"
+                                          className="pr-12"
+                                          disabled={!ragEnabled}
+                                        >
+                                          <span>Semantic (Qwen3 8B)</span>
+                                          <Badge
+                                            variant="secondary"
+                                            className="h-5 shrink-0 px-1.5 text-[10px]"
+                                          >
+                                            EXP
+                                          </Badge>
+                                        </SelectItem>
+                                      </SelectGroup>
+                                    </>
+                                  ) : null}
                                 </SelectContent>
                               </Select>
                               <RouteSettingsCombobox
@@ -2483,7 +2605,11 @@ function getRetrievalLabel(mode?: RetrievalMode) {
     return "No RAG";
   }
 
-  return mode === "lexical" ? "Lexical" : "Semantic";
+  if (mode === "lexical") {
+    return "Lexical";
+  }
+
+  return mode === "semantic-qwen" ? "Semantic (Qwen3 8B)" : "Semantic (BGE)";
 }
 
 function getWebLabel(mode?: WebMode) {

@@ -61,6 +61,8 @@ const MODEL_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 640;
 const DEFAULT_MAX_THINKING_TOKENS = 180;
 const TOKEN_CHAR_RATIO = 4;
+const ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL =
+  process.env.NEXT_PUBLIC_ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL === "true";
 const NO_THINK_RECOVERY_INSTRUCTIONS = [
   "",
   "The previous generation spent too much budget in thinking.",
@@ -451,7 +453,7 @@ async function runLocalRetrieval(
   stage("handbook", "active", "Searching local handbook evidence.");
   const evidence = (await retrieveContext(
     message,
-    retrievalMode === "semantic" ? 3 : 4,
+    isSemanticMode(retrievalMode) ? 3 : 4,
     retrievalMode,
   )) as Evidence[];
   stage(
@@ -898,8 +900,11 @@ function getModels(
     harnessMode === "openrouter" ? getOpenRouterHarnessModel() : modelName;
   const models: ChatResponse["models"] = [{ role: "chat", name: modelName }];
 
-  if (retrievalMode === "semantic") {
-    models.unshift({ role: "embedding", name: getOpenRouterEmbeddingModel() });
+  if (isSemanticMode(retrievalMode)) {
+    models.unshift({
+      role: "embedding",
+      name: getOpenRouterEmbeddingModel(retrievalMode),
+    });
   }
 
   models.push({ role: "harness", name: harnessModel });
@@ -992,6 +997,13 @@ function stripThinkTags(text: string) {
 
 function shouldUseLocal(retrievalMode: RetrievalMode) {
   return retrievalMode !== "none";
+}
+
+function isSemanticMode(retrievalMode: RetrievalMode) {
+  return (
+    retrievalMode === "semantic" ||
+    (ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL && retrievalMode === "semantic-qwen")
+  );
 }
 
 function needsAcceptedWebEvidence(
@@ -1093,7 +1105,10 @@ function normalizeHistory(history: unknown): ChatHistoryTurn[] {
 }
 
 function parseRetrievalMode(mode: unknown): RetrievalMode {
-  return mode === "lexical" || mode === "semantic" || mode === "none"
+  return mode === "lexical" ||
+    mode === "semantic" ||
+    (ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL && mode === "semantic-qwen") ||
+    mode === "none"
     ? mode
     : "semantic";
 }
@@ -1184,7 +1199,7 @@ function getPublicModelError(error: unknown) {
 
   if (
     error instanceof Error &&
-    (error.message.startsWith("Missing data/UM_RAG_Vectors.sqlite") ||
+    (error.message.startsWith("Missing data/UM_RAG_Vectors") ||
       error.message.startsWith("Semantic vector index"))
   ) {
     return "The semantic vector index is missing or incompatible. Run `pnpm rag:index` after setting OPENROUTER_API_KEY.";

@@ -20,7 +20,7 @@ export type Evidence = {
   status?: "accepted" | "rejected";
 };
 
-export type RetrievalMode = "lexical" | "semantic" | "none";
+export type RetrievalMode = "lexical" | "semantic" | "semantic-qwen" | "none";
 export type WebMode = "auto" | "on" | "off";
 export type WebTrustMode = "broad" | "strict";
 export type HarnessMode = "tensortalk" | "openrouter";

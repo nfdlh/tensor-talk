@@ -26,19 +26,49 @@ type OpenRouterEmbeddingResponse = {
   };
 };
 
+type IndexProfile = "bge" | "qwen3";
+
+const INDEX_PROFILES: Record<
+  IndexProfile,
+  {
+    dbFile: string;
+    defaultBatchSize: number;
+    defaultModel: string;
+  }
+> = {
+  bge: {
+    dbFile: "UM_RAG_Vectors.sqlite",
+    defaultBatchSize: 96,
+    defaultModel: "baai/bge-base-en-v1.5",
+  },
+  qwen3: {
+    dbFile: "UM_RAG_Vectors_Qwen3.sqlite",
+    defaultBatchSize: 16,
+    defaultModel: "qwen/qwen3-embedding-8b",
+  },
+};
+
 const PROJECT_ROOT = process.cwd();
 const KB_PATH = path.join(PROJECT_ROOT, "data", "UM_RAG_Knowledge_Base.jsonl");
-const DB_PATH = path.join(PROJECT_ROOT, "data", "UM_RAG_Vectors.sqlite");
-const TMP_DB_PATH = `${DB_PATH}.tmp`;
 
 loadEnvFile(path.join(PROJECT_ROOT, ".env.local"));
 loadEnvFile(path.join(PROJECT_ROOT, ".env"));
 
+const INDEX_PROFILE = parseIndexProfile(process.env.RAG_INDEX_PROFILE);
+const PROFILE_CONFIG = INDEX_PROFILES[INDEX_PROFILE];
+const DB_PATH = path.join(PROJECT_ROOT, "data", PROFILE_CONFIG.dbFile);
+const TMP_DB_PATH = `${DB_PATH}.tmp`;
 const OPENROUTER_BASE_URL =
   process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 const EMBEDDING_MODEL =
-  process.env.OPENROUTER_EMBEDDING_MODEL ?? "baai/bge-base-en-v1.5";
-const BATCH_SIZE = Number(process.env.RAG_INDEX_BATCH_SIZE ?? 96);
+  process.env.RAG_INDEX_EMBEDDING_MODEL ??
+  (INDEX_PROFILE === "qwen3"
+    ? process.env.OPENROUTER_EXPERIMENTAL_EMBEDDING_MODEL
+    : process.env.OPENROUTER_EMBEDDING_MODEL) ??
+  PROFILE_CONFIG.defaultModel;
+const BATCH_SIZE = Number(
+  process.env.RAG_INDEX_BATCH_SIZE ?? PROFILE_CONFIG.defaultBatchSize,
+);
 const MAX_EMBEDDING_TEXT_CHARS = process.env.RAG_INDEX_MAX_TEXT_CHARS
   ? Number(process.env.RAG_INDEX_MAX_TEXT_CHARS)
   : undefined;
@@ -54,10 +84,12 @@ const rows = fs
   .trim()
   .split("\n")
   .filter(Boolean)
-  .map((line, index): HandbookIndexRow => ({
-    ...(JSON.parse(line) as Omit<HandbookIndexRow, "id">),
-    id: index,
-  }));
+  .map(
+    (line, index): HandbookIndexRow => ({
+      ...(JSON.parse(line) as Omit<HandbookIndexRow, "id">),
+      id: index,
+    }),
+  );
 
 if (rows.length === 0) {
   throw new Error(`No rows found in ${KB_PATH}.`);
@@ -91,6 +123,7 @@ const insertMeta = db.prepare(
   "INSERT INTO rag_meta (key, value) VALUES (?, ?)",
 );
 insertMeta.run("embedding_model", EMBEDDING_MODEL);
+insertMeta.run("embedding_profile", INDEX_PROFILE);
 insertMeta.run("source_file", path.relative(PROJECT_ROOT, KB_PATH));
 insertMeta.run("row_count", String(rows.length));
 insertMeta.run("built_at", new Date().toISOString());
@@ -150,7 +183,10 @@ function getRetrievalText(row: HandbookIndexRow) {
     : text;
 }
 
-async function createEmbeddings(input: string[], singleRetry = 0): Promise<number[][]> {
+async function createEmbeddings(
+  input: string[],
+  singleRetry = 0,
+): Promise<number[][]> {
   const response = await fetch(`${OPENROUTER_BASE_URL}/embeddings`, {
     method: "POST",
     headers: {
@@ -163,11 +199,15 @@ async function createEmbeddings(input: string[], singleRetry = 0): Promise<numbe
       encoding_format: "float",
     }),
   });
-  const body = (await response.json().catch(() => null)) as
-    | OpenRouterEmbeddingResponse
-    | null;
+  const body = (await response
+    .json()
+    .catch(() => null)) as OpenRouterEmbeddingResponse | null;
 
   if (!response.ok) {
+    if (input.length > 1) {
+      return createEmbeddingsBySplit(input);
+    }
+
     throw new Error(
       body?.error?.message ??
         `OpenRouter embeddings request failed with ${response.status}.`,
@@ -177,11 +217,7 @@ async function createEmbeddings(input: string[], singleRetry = 0): Promise<numbe
   const embeddings = body?.data?.map((item) => item.embedding ?? []) ?? [];
 
   if (embeddings.length !== input.length && input.length > 1) {
-    const midpoint = Math.ceil(input.length / 2);
-    const left = await createEmbeddings(input.slice(0, midpoint));
-    const right = await createEmbeddings(input.slice(midpoint));
-
-    return [...left, ...right];
+    return createEmbeddingsBySplit(input);
   }
 
   if (
@@ -205,6 +241,14 @@ async function createEmbeddings(input: string[], singleRetry = 0): Promise<numbe
   return embeddings.map(normalizeVector);
 }
 
+async function createEmbeddingsBySplit(input: string[]) {
+  const midpoint = Math.ceil(input.length / 2);
+  const left = await createEmbeddings(input.slice(0, midpoint));
+  const right = await createEmbeddings(input.slice(midpoint));
+
+  return [...left, ...right];
+}
+
 function normalizeVector(vector: number[]) {
   const magnitude = Math.sqrt(
     vector.reduce((sum, value) => sum + value * value, 0),
@@ -219,6 +263,18 @@ function normalizeVector(vector: number[]) {
 
 function vectorToBuffer(vector: number[]) {
   return Buffer.from(Float32Array.from(vector).buffer);
+}
+
+function parseIndexProfile(profile: string | undefined): IndexProfile {
+  if (!profile || profile === "bge") {
+    return "bge";
+  }
+
+  if (profile === "qwen3") {
+    return "qwen3";
+  }
+
+  throw new Error("RAG_INDEX_PROFILE must be either `bge` or `qwen3`.");
 }
 
 function loadEnvFile(filePath: string) {

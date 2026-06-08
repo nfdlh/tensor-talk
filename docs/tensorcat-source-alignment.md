@@ -113,6 +113,13 @@ The index builder embeds `retrieval_text`, stores the complete row JSON beside
 the vector, records the embedding model in `rag_meta`, and validates the runtime
 embedding model/dimension before serving semantic retrieval.
 
+The UI also exposes an experimental `Semantic (Qwen3 8B)` mode. That mode is not
+part of TensorCat report parity. It uses `qwen/qwen3-embedding-8b`, applies the
+Qwen3 query instruction format at request time, and reads a separate
+`data/UM_RAG_Vectors_Qwen3.sqlite` index built with
+`RAG_INDEX_PROFILE=qwen3 pnpm rag:index`. The option is hidden unless
+`NEXT_PUBLIC_ENABLE_EXPERIMENTAL_QWEN_RETRIEVAL=true`.
+
 ## Missing upstream pipeline pieces
 
 The runtime repo does not currently contain the full upstream data build chain:

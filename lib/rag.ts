@@ -106,7 +106,15 @@ const LEXICAL_STRONG_SCORE = 80;
 
 let rowsCache: HandbookRow[] | null = null;
 let searchCache: MiniSearch<HandbookRow> | null = null;
-let vectorCache: VectorIndex | null = null;
+const VECTOR_INDEX_FILES: Record<
+  Extract<RetrievalMode, "semantic" | "semantic-qwen">,
+  string
+> = {
+  semantic: "UM_RAG_Vectors.sqlite",
+  "semantic-qwen": "UM_RAG_Vectors_Qwen3.sqlite",
+};
+
+const vectorCache: Partial<Record<RetrievalMode, VectorIndex>> = {};
 
 function loadKnowledgeBase() {
   if (rowsCache && searchCache) {
@@ -175,14 +183,17 @@ export async function retrieveContext(
     return [];
   }
 
-  if (mode === "semantic") {
-    return retrieveSemanticContext(question, topK);
+  if (isSemanticMode(mode)) {
+    return retrieveSemanticContext(question, topK, mode);
   }
 
   return retrieveLexicalContext(question, topK);
 }
 
-function retrieveLexicalContext(question: string, topK = 4): HandbookEvidence[] {
+function retrieveLexicalContext(
+  question: string,
+  topK = 4,
+): HandbookEvidence[] {
   const { rows, search } = loadKnowledgeBase();
   const query = question.trim();
 
@@ -217,25 +228,27 @@ function retrieveLexicalContext(question: string, topK = 4): HandbookEvidence[] 
     .sort((left, right) => right.score - left.score)
     .slice(0, topK);
   return scoredMatches.map((match, index) =>
-    toEvidence(
-      match.row,
-      index + 1,
-      lexicalConfidence(match.score),
-      question,
-    ),
+    toEvidence(match.row, index + 1, lexicalConfidence(match.score), question),
   );
 }
 
-async function retrieveSemanticContext(question: string, topK = 4) {
+async function retrieveSemanticContext(
+  question: string,
+  topK = 4,
+  mode: Extract<RetrievalMode, "semantic" | "semantic-qwen"> = "semantic",
+) {
   const query = question.trim();
 
   if (!query) {
     return [];
   }
 
-  const index = loadVectorIndex();
-  const [queryVector] = await createOpenRouterEmbeddings(query);
-  validateVectorIndex(index, queryVector.length);
+  const index = loadVectorIndex(mode);
+  const [queryVector] = await createOpenRouterEmbeddings(query, {
+    inputType: "query",
+    retrievalMode: mode,
+  });
+  validateVectorIndex(index, queryVector.length, mode);
   const rerankPool = Math.max(topK, TOP_K_RERANK_POOL);
   const queryMeta = inferExpectedMetadata(query);
   const denseHits = index.records
@@ -268,17 +281,18 @@ async function retrieveSemanticContext(question: string, topK = 4) {
   );
 }
 
-function loadVectorIndex() {
-  if (vectorCache) {
-    return vectorCache;
+function loadVectorIndex(
+  mode: Extract<RetrievalMode, "semantic" | "semantic-qwen">,
+) {
+  if (vectorCache[mode]) {
+    return vectorCache[mode];
   }
 
-  const filePath = path.join(process.cwd(), "data", "UM_RAG_Vectors.sqlite");
+  const indexFile = VECTOR_INDEX_FILES[mode];
+  const filePath = path.join(process.cwd(), "data", indexFile);
 
   if (!fs.existsSync(filePath)) {
-    throw new Error(
-      "Missing data/UM_RAG_Vectors.sqlite. Run `pnpm rag:index` first.",
-    );
+    throw new Error(`Missing data/${indexFile}. Run \`pnpm rag:index\` first.`);
   }
 
   const dbUrl = pathToFileURL(filePath);
@@ -309,17 +323,21 @@ function loadVectorIndex() {
     metaRows.map((row) => [row.key, row.value]),
   ) as Record<string, string | undefined>;
 
-  vectorCache = {
+  vectorCache[mode] = {
     records,
     embeddingModel: meta.embedding_model,
     dimension,
   };
 
-  return vectorCache;
+  return vectorCache[mode];
 }
 
-function validateVectorIndex(index: VectorIndex, queryDimension: number) {
-  const runtimeModel = getOpenRouterEmbeddingModel();
+function validateVectorIndex(
+  index: VectorIndex,
+  queryDimension: number,
+  mode: Extract<RetrievalMode, "semantic" | "semantic-qwen">,
+) {
+  const runtimeModel = getOpenRouterEmbeddingModel(mode);
 
   if (index.embeddingModel && index.embeddingModel !== runtimeModel) {
     throw new Error(
@@ -332,6 +350,12 @@ function validateVectorIndex(index: VectorIndex, queryDimension: number) {
       `Semantic vector index dimension ${index.dimension} does not match query embedding dimension ${queryDimension}. Run \`pnpm rag:index\` again.`,
     );
   }
+}
+
+function isSemanticMode(
+  mode: RetrievalMode,
+): mode is Extract<RetrievalMode, "semantic" | "semantic-qwen"> {
+  return mode === "semantic" || mode === "semantic-qwen";
 }
 
 function semanticScore(
@@ -489,7 +513,10 @@ function semanticConfidence(score: number) {
   return clamp((score + 1) / 2);
 }
 
-function supportScoreFromConfidence(confidence: number, questionOverlap: number) {
+function supportScoreFromConfidence(
+  confidence: number,
+  questionOverlap: number,
+) {
   return clamp(0.75 * confidence + 0.25 * questionOverlap);
 }
 
@@ -532,7 +559,9 @@ function answerScore(
   subject: string | null,
 ) {
   const normalized = answer.toLowerCase();
-  const termScore = queryTerms.filter((term) => normalized.includes(term)).length;
+  const termScore = queryTerms.filter((term) =>
+    normalized.includes(term),
+  ).length;
 
   if (!subject) {
     return termScore;
@@ -621,7 +650,11 @@ function metadataBonus(expectedValue?: string, rowValue?: string) {
 }
 
 function bufferToVector(buffer: Uint8Array, dimension: number) {
-  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const view = new DataView(
+    buffer.buffer,
+    buffer.byteOffset,
+    buffer.byteLength,
+  );
   const vector = new Array<number>(dimension);
 
   for (let index = 0; index < dimension; index += 1) {
@@ -657,7 +690,10 @@ function normalizeQuestionSubject(subject?: string) {
 }
 
 function normalizeRoleSubject(subject: string) {
-  return subject.replace(/^the\s+/, "").replace(/\s+of\s+.+$/, "").trim();
+  return subject
+    .replace(/^the\s+/, "")
+    .replace(/\s+of\s+.+$/, "")
+    .trim();
 }
 
 function normalizeText(text: string) {

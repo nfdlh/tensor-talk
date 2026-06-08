@@ -87,7 +87,7 @@ filter so unrelated prompts do not receive arbitrary handbook rows.
 The API asks for 3 semantic evidence chunks or 4 lexical evidence chunks:
 
 ```ts
-retrieveContext(message, retrievalMode === "semantic" ? 3 : 4, retrievalMode);
+retrieveContext(message, isSemanticMode(retrievalMode) ? 3 : 4, retrievalMode);
 ```
 
 Those chunks are eligible for the prompt only after route-specific checks. Web
