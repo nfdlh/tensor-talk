@@ -35,6 +35,10 @@ export type StoredThread = {
 const DB_NAME = "tensortalk_threads";
 const DB_VERSION = 1;
 const THREAD_STORE = "threads";
+const LEGACY_INTERRUPTED_RESPONSE_ERROR =
+  "Response was interrupted before completion.";
+const RECOVERED_INTERRUPTED_RESPONSE_ERROR =
+  "Answer did not finish before the page was closed or refreshed.";
 
 export async function listThreads() {
   const db = await openThreadDb();
@@ -47,9 +51,9 @@ export async function listThreads() {
 
     request.onsuccess = () => {
       resolve(
-        (request.result as StoredThread[]).sort(
-          (left, right) => right.updatedAt - left.updatedAt,
-        ),
+        (request.result as StoredThread[])
+          .map(normalizeThread)
+          .sort((left, right) => right.updatedAt - left.updatedAt),
       );
     };
     request.onerror = () => reject(request.error);
@@ -100,6 +104,19 @@ function openThreadDb() {
   });
 }
 
+function normalizeThread(thread: StoredThread): StoredThread {
+  return {
+    ...thread,
+    turns: thread.turns.map((turn) => ({
+      ...turn,
+      error:
+        turn.error === LEGACY_INTERRUPTED_RESPONSE_ERROR
+          ? RECOVERED_INTERRUPTED_RESPONSE_ERROR
+          : turn.error,
+    })),
+  };
+}
+
 function compactThread(thread: StoredThread): StoredThread {
   return {
     ...thread,
@@ -107,7 +124,7 @@ function compactThread(thread: StoredThread): StoredThread {
       ...turn,
       streaming: false,
       error: turn.streaming
-        ? (turn.error ?? "Response was interrupted before completion.")
+        ? (turn.error ?? RECOVERED_INTERRUPTED_RESPONSE_ERROR)
         : turn.error,
       evidence: turn.evidence.map((item) => ({
         ...item,

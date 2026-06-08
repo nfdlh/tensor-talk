@@ -916,14 +916,22 @@ export function TensorTalkClient() {
                   sidebarCollapsed && "justify-center",
                 )}
               >
-                <div className="flex size-12 shrink-0 items-center justify-center">
+                <div
+                  className={cn(
+                    "flex shrink-0 items-center justify-center",
+                    sidebarCollapsed ? "size-9" : "size-12",
+                  )}
+                >
                   <Image
                     src="/um-mark-transparent.png"
                     alt=""
                     width={48}
                     height={48}
                     priority
-                    className="size-10 object-contain"
+                    className={cn(
+                      "object-contain",
+                      sidebarCollapsed ? "size-6" : "size-10",
+                    )}
                   />
                 </div>
                 <div className={cn("min-w-0", sidebarCollapsed && "hidden")}>
