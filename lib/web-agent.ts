@@ -1,4 +1,9 @@
-import type { Evidence, PlannerTrace, RejectedEvidence } from "@/lib/chat";
+import type {
+  Evidence,
+  PlannerTrace,
+  RejectedEvidence,
+  WebTrustMode,
+} from "@/lib/chat";
 
 const EXA_SEARCH_URL = "https://api.exa.ai/search";
 const SEARCH_TIMEOUT_MS = 25_000;
@@ -14,7 +19,11 @@ export const ALLOWED_WEB_DOMAINS = [
   "career.um.edu.my",
   "study.um.edu.my",
   "admission.um.edu.my",
+  "umexpert.um.edu.my",
+  "ias.um.edu.my",
 ] as const;
+
+const BROAD_WEB_DOMAINS = ["um.edu.my", "*.um.edu.my"] as const;
 
 const BLOCKED_FILE_EXTENSIONS = new Set([
   "jpg",
@@ -93,6 +102,7 @@ export type WebSearchResult = {
 export async function searchOfficialWeb(
   question: string,
   planner: Pick<PlannerTrace, "searchQueries" | "targetKeywords">,
+  trustMode: WebTrustMode = "broad",
   abortSignal?: AbortSignal,
 ): Promise<WebSearchResult> {
   const apiKey = process.env.EXA_API_KEY;
@@ -112,7 +122,7 @@ export async function searchOfficialWeb(
       query,
       type: "auto",
       numResults: 8,
-      includeDomains: ALLOWED_WEB_DOMAINS,
+      includeDomains: getSearchDomains(trustMode),
       contents: {
         highlights: true,
         text: {
@@ -128,9 +138,9 @@ export async function searchOfficialWeb(
 
     throw error;
   });
-  const body = (await response.json().catch(() => null)) as
-    | ExaSearchResponse
-    | null;
+  const body = (await response
+    .json()
+    .catch(() => null)) as ExaSearchResponse | null;
 
   if (!response.ok) {
     throw new Error(
@@ -150,7 +160,7 @@ export async function searchOfficialWeb(
       continue;
     }
 
-    const decision = inspectWebResult(result, question, index + 1);
+    const decision = inspectWebResult(result, question, trustMode, index + 1);
 
     if (!decision.accepted) {
       rejected.push(decision.rejected);
@@ -261,7 +271,10 @@ export function supportBand(score: number): "strong" | "moderate" | "weak" {
   return "weak";
 }
 
-export function validateOfficialUrl(url: string):
+export function validateOfficialUrl(
+  url: string,
+  trustMode: WebTrustMode = "broad",
+):
   | {
       accepted: true;
       domain: string;
@@ -280,7 +293,7 @@ export function validateOfficialUrl(url: string):
 
   const domain = parsed.hostname;
 
-  if (!isAllowedDomain(domain)) {
+  if (!isAllowedDomain(domain, trustMode)) {
     return { accepted: false, reason: "domain_not_allowed", domain };
   }
 
@@ -295,9 +308,7 @@ export function validateOfficialUrl(url: string):
   return {
     accepted: true,
     domain,
-    sourceKind: parsed.pathname.toLowerCase().endsWith(".pdf")
-      ? "pdf"
-      : "page",
+    sourceKind: parsed.pathname.toLowerCase().endsWith(".pdf") ? "pdf" : "page",
   };
 }
 
@@ -345,13 +356,14 @@ function buildSearchQuery(
 function inspectWebResult(
   result: ExaResult,
   question: string,
+  trustMode: WebTrustMode,
   rank: number,
 ):
   | { accepted: true; evidence: Evidence }
   | { accepted: false; rejected: RejectedEvidence } {
   const url = result.url ?? "";
   const title = result.title?.trim() || "Official UM web source";
-  const urlDecision = validateOfficialUrl(url);
+  const urlDecision = validateOfficialUrl(url, trustMode);
 
   if (!urlDecision.accepted) {
     return {
@@ -372,11 +384,12 @@ function inspectWebResult(
     .map((highlight) => highlight.trim())
     .filter(Boolean)
     .slice(0, 4);
-  const rawText = [highlights.join("\n"), result.text ?? ""]
-    .join("\n")
-    .trim();
+  const rawText = [highlights.join("\n"), result.text ?? ""].join("\n").trim();
 
-  if (!rawText || BLOCKED_TEXT_PATTERNS.some((pattern) => pattern.test(rawText))) {
+  if (
+    !rawText ||
+    BLOCKED_TEXT_PATTERNS.some((pattern) => pattern.test(rawText))
+  ) {
     return {
       accepted: false,
       rejected: { ...baseRejected, reason: "blocked_or_empty" },
@@ -395,9 +408,7 @@ function inspectWebResult(
   }
 
   const confidence = webConfidence(result, relevance, rank);
-  const supportScoreValue = clamp(
-    0.75 * confidence + 0.25 * relevance,
-  );
+  const supportScoreValue = clamp(0.75 * confidence + 0.25 * relevance);
 
   if (supportScoreValue < 0.32) {
     return {
@@ -442,12 +453,20 @@ function parseSafeUrl(url: string) {
   }
 }
 
-function isAllowedDomain(hostname: string) {
+function isAllowedDomain(hostname: string, trustMode: WebTrustMode) {
+  if (trustMode === "broad") {
+    return hostname === "um.edu.my" || hostname.endsWith(".um.edu.my");
+  }
+
   return ALLOWED_WEB_DOMAINS.some(
     (domain) =>
       hostname === domain ||
       (domain === "fsktm.um.edu.my" && hostname.endsWith(`.${domain}`)),
   );
+}
+
+function getSearchDomains(trustMode: WebTrustMode) {
+  return trustMode === "broad" ? BROAD_WEB_DOMAINS : ALLOWED_WEB_DOMAINS;
 }
 
 function isFakeUrl(url: string) {
@@ -457,14 +476,12 @@ function isFakeUrl(url: string) {
 function isBlockedAsset(url: URL) {
   const extension = url.pathname.split(".").pop()?.toLowerCase();
 
-  return Boolean(extension && extension !== "pdf" && BLOCKED_FILE_EXTENSIONS.has(extension));
+  return Boolean(
+    extension && extension !== "pdf" && BLOCKED_FILE_EXTENSIONS.has(extension),
+  );
 }
 
-function webConfidence(
-  result: ExaResult,
-  relevance: number,
-  rank: number,
-) {
+function webConfidence(result: ExaResult, relevance: number, rank: number) {
   const highlightScores = result.highlightScores ?? [];
   const highlightScore =
     highlightScores.length > 0
@@ -474,7 +491,7 @@ function webConfidence(
   const base =
     typeof result.score === "number"
       ? result.score
-      : highlightScore ?? 0.25 + Math.max(0, 4 - rank) * 0.04;
+      : (highlightScore ?? 0.25 + Math.max(0, 4 - rank) * 0.04);
 
   return clamp(base * 0.7 + relevance * 0.3);
 }
@@ -501,7 +518,9 @@ function meaningfulTerms(text: string) {
 }
 
 function uniqueStrings(values: string[]) {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+  return Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean)),
+  );
 }
 
 function clamp(value: number) {

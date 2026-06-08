@@ -5,6 +5,7 @@ import type {
   RetrievalMode,
   ThinkingMode,
   WebMode,
+  WebTrustMode,
 } from "@/lib/chat";
 
 export type StoredTurn = ChatResponse & {
@@ -16,6 +17,7 @@ export type StoredTurn = ChatResponse & {
   settings: {
     retrievalMode: RetrievalMode;
     webMode: WebMode;
+    webTrustMode?: WebTrustMode;
     harnessMode?: HarnessMode;
     thinkingMode?: ThinkingMode;
   };
@@ -104,10 +106,9 @@ function compactThread(thread: StoredThread): StoredThread {
     turns: thread.turns.map((turn) => ({
       ...turn,
       streaming: false,
-      error:
-        turn.streaming
-          ? turn.error ?? "Response was interrupted before completion."
-          : turn.error,
+      error: turn.streaming
+        ? (turn.error ?? "Response was interrupted before completion.")
+        : turn.error,
       evidence: turn.evidence.map((item) => ({
         ...item,
         source_text: item.source_text?.slice(0, 1200),

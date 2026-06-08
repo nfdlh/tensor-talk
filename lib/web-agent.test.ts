@@ -18,7 +18,9 @@ afterEach(() => {
 
 describe("validateOfficialUrl", () => {
   it("accepts official pages and PDFs", () => {
-    expect(validateOfficialUrl("https://fsktm.um.edu.my/programmes")).toMatchObject({
+    expect(
+      validateOfficialUrl("https://fsktm.um.edu.my/programmes"),
+    ).toMatchObject({
       accepted: true,
       domain: "fsktm.um.edu.my",
       sourceKind: "page",
@@ -36,6 +38,22 @@ describe("validateOfficialUrl", () => {
       sourceKind: "page",
     });
     expect(
+      validateOfficialUrl("https://umexpert.um.edu.my/erma.html"),
+    ).toMatchObject({
+      accepted: true,
+      domain: "umexpert.um.edu.my",
+      sourceKind: "page",
+    });
+    expect(
+      validateOfficialUrl(
+        "https://ias.um.edu.my/Student%20Affairs/Guideline/Compilation%20Policy.pdf",
+      ),
+    ).toMatchObject({
+      accepted: true,
+      domain: "ias.um.edu.my",
+      sourceKind: "pdf",
+    });
+    expect(
       validateOfficialUrl(
         "https://handbook2018e.fsktm.um.edu.my/files/assets/basic-html/page202.html",
       ),
@@ -43,6 +61,28 @@ describe("validateOfficialUrl", () => {
       accepted: true,
       domain: "handbook2018e.fsktm.um.edu.my",
       sourceKind: "page",
+    });
+  });
+
+  it("can switch between strict and broad UM domain trust", () => {
+    expect(
+      validateOfficialUrl(
+        "https://conference.um.edu.my/call-for-papers",
+        "broad",
+      ),
+    ).toMatchObject({
+      accepted: true,
+      domain: "conference.um.edu.my",
+    });
+    expect(
+      validateOfficialUrl(
+        "https://conference.um.edu.my/call-for-papers",
+        "strict",
+      ),
+    ).toMatchObject({
+      accepted: false,
+      reason: "domain_not_allowed",
+      domain: "conference.um.edu.my",
     });
   });
 
@@ -55,7 +95,9 @@ describe("validateOfficialUrl", () => {
       accepted: false,
       reason: "fake_url_pattern",
     });
-    expect(validateOfficialUrl("https://fsktm.um.edu.my/logo.png")).toMatchObject({
+    expect(
+      validateOfficialUrl("https://fsktm.um.edu.my/logo.png"),
+    ).toMatchObject({
       accepted: false,
       reason: "asset_url",
     });
@@ -88,7 +130,9 @@ describe("applyDeterministicWebGuard", () => {
 
     expect(planner.needWeb).toBe(true);
     expect(planner.queryType).toBe("official_web");
-    expect(planner.searchQueries).toEqual(["What is the current admission fee?"]);
+    expect(planner.searchQueries).toEqual([
+      "What is the current admission fee?",
+    ]);
     expect(planner.reason).toContain("Deterministic guard required");
   });
 });
@@ -103,6 +147,52 @@ describe("searchOfficialWeb", () => {
         targetKeywords: ["parking"],
       }),
     ).rejects.toThrow("Missing EXA_API_KEY.");
+  });
+
+  it("uses broad UM wildcard domains for Exa discovery by default", async () => {
+    process.env.EXA_API_KEY = "test-key";
+    let includeDomains: string[] = [];
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        includeDomains?: string[];
+      };
+      includeDomains = requestBody.includeDomains ?? [];
+
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    await searchOfficialWeb("conference", {
+      searchQueries: ["conference"],
+      targetKeywords: ["conference"],
+    });
+
+    expect(includeDomains).toEqual(["um.edu.my", "*.um.edu.my"]);
+  });
+
+  it("uses the strict domain list for Exa discovery in strict mode", async () => {
+    process.env.EXA_API_KEY = "test-key";
+    let includeDomains: string[] = [];
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      const requestBody = JSON.parse(String(init?.body)) as {
+        includeDomains?: string[];
+      };
+      includeDomains = requestBody.includeDomains ?? [];
+
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    await searchOfficialWeb(
+      "conference",
+      {
+        searchQueries: ["conference"],
+        targetKeywords: ["conference"],
+      },
+      "strict",
+    );
+
+    expect(includeDomains).toContain("fsktm.um.edu.my");
+    expect(includeDomains).toContain("umexpert.um.edu.my");
+    expect(includeDomains).not.toContain("*.um.edu.my");
   });
 
   it("rejects unscored results with no question overlap", async () => {

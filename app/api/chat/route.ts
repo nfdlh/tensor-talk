@@ -17,6 +17,7 @@ import {
   type RetrievalMode,
   type ThinkingMode,
   type WebMode,
+  type WebTrustMode,
 } from "@/lib/chat";
 import {
   buildHistoryContext,
@@ -72,7 +73,12 @@ const NO_THINK_RECOVERY_INSTRUCTIONS = [
 type NormalizedChatRequest = Required<
   Pick<
     ChatRequest,
-    "message" | "retrievalMode" | "webMode" | "harnessMode" | "thinkingMode"
+    | "message"
+    | "retrievalMode"
+    | "webMode"
+    | "webTrustMode"
+    | "harnessMode"
+    | "thinkingMode"
   >
 > & {
   history: ChatHistoryTurn[];
@@ -171,6 +177,7 @@ async function runChatHarness(
     message,
     retrievalMode,
     webMode,
+    webTrustMode,
     harnessMode,
     thinkingMode,
     history,
@@ -189,7 +196,13 @@ async function runChatHarness(
       ? runLocalRetrieval(message, retrievalMode, stage)
       : Promise.resolve<Evidence[]>([]);
     planner = deterministicPlanner(message, []);
-    const webPromise = runWebSearch(message, planner, stage, abortSignal);
+    const webPromise = runWebSearch(
+      message,
+      planner,
+      webTrustMode,
+      stage,
+      abortSignal,
+    );
     const [localResult, webResult] = await Promise.allSettled([
       localPromise,
       webPromise,
@@ -228,6 +241,7 @@ async function runChatHarness(
           const webResult = await runWebSearch(
             message,
             planner,
+            webTrustMode,
             stage,
             abortSignal,
           );
@@ -254,6 +268,7 @@ async function runChatHarness(
     route: {
       retrievalMode,
       webMode,
+      webTrustMode,
       harnessMode,
       thinkingMode,
       usedLocal: handbookEvidence.length > 0,
@@ -293,6 +308,7 @@ async function runChatHarness(
     models,
     retrievalMode,
     webMode,
+    webTrustMode,
     harnessMode,
     thinkingMode,
     trace,
@@ -413,6 +429,7 @@ async function runChatHarness(
     models,
     retrievalMode,
     webMode,
+    webTrustMode,
     harnessMode,
     thinkingMode,
     trace,
@@ -506,6 +523,7 @@ async function runPlanner(
 async function runWebSearch(
   message: string,
   planner: PlannerTrace,
+  webTrustMode: WebTrustMode,
   stage: (
     id: ChatStage["id"],
     status: ChatStage["status"],
@@ -514,7 +532,12 @@ async function runWebSearch(
   abortSignal: AbortSignal,
 ) {
   stage("web", "active", "Searching official UM/FSKTM sources with Exa.");
-  const webResult = await searchOfficialWeb(message, planner, abortSignal);
+  const webResult = await searchOfficialWeb(
+    message,
+    planner,
+    webTrustMode,
+    abortSignal,
+  );
 
   stage(
     "web",
@@ -1026,12 +1049,21 @@ async function parseChatRequest(request: Request) {
     const message = payload.message?.trim() ?? "";
     const retrievalMode = parseRetrievalMode(payload.retrievalMode);
     const webMode = parseWebMode(payload.webMode);
+    const webTrustMode = parseWebTrustMode(payload.webTrustMode);
     const harnessMode = parseHarnessMode(payload.harnessMode);
     const thinkingMode = parseThinkingMode(payload.thinkingMode);
     const history = normalizeHistory(payload.history);
 
     return message
-      ? { message, retrievalMode, webMode, harnessMode, thinkingMode, history }
+      ? {
+          message,
+          retrievalMode,
+          webMode,
+          webTrustMode,
+          harnessMode,
+          thinkingMode,
+          history,
+        }
       : null;
   } catch {
     return null;
@@ -1068,6 +1100,10 @@ function parseRetrievalMode(mode: unknown): RetrievalMode {
 
 function parseWebMode(mode: unknown): WebMode {
   return mode === "on" || mode === "off" || mode === "auto" ? mode : "auto";
+}
+
+function parseWebTrustMode(mode: unknown): WebTrustMode {
+  return mode === "strict" ? "strict" : "broad";
 }
 
 function parseHarnessMode(mode: unknown): HarnessMode {

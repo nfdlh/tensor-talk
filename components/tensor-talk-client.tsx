@@ -100,6 +100,7 @@ import type {
   RetrievalMode,
   ThinkingMode,
   WebMode,
+  WebTrustMode,
 } from "@/lib/chat";
 import {
   deleteThread,
@@ -140,6 +141,7 @@ export function TensorTalkClient() {
   const [message, setMessage] = useState("");
   const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("semantic");
   const [webMode, setWebMode] = useState<WebMode>("auto");
+  const [webTrustMode, setWebTrustMode] = useState<WebTrustMode>("broad");
   const [harnessMode, setHarnessMode] = useState<HarnessMode>("tensortalk");
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>("limited");
   const [threads, setThreads] = useState<StoredThread[]>([]);
@@ -327,6 +329,7 @@ export function TensorTalkClient() {
     await sendQuestion(question, {
       retrievalMode,
       webMode,
+      webTrustMode,
       harnessMode,
       thinkingMode,
     });
@@ -337,6 +340,7 @@ export function TensorTalkClient() {
     settings: {
       retrievalMode: RetrievalMode;
       webMode: WebMode;
+      webTrustMode?: WebTrustMode;
       harnessMode?: HarnessMode;
       thinkingMode?: ThinkingMode;
     },
@@ -346,8 +350,12 @@ export function TensorTalkClient() {
       return;
     }
 
+    const requestSettings = {
+      ...settings,
+      webTrustMode: settings.webTrustMode ?? "broad",
+    };
     const turnId = retryTurnId ?? crypto.randomUUID();
-    const draftTurn = createDraftTurn(turnId, question, settings);
+    const draftTurn = createDraftTurn(turnId, question, requestSettings);
     const abortController = new AbortController();
     activeRequestRef.current = abortController;
     setPendingTurnId(turnId);
@@ -368,10 +376,11 @@ export function TensorTalkClient() {
       const response = await sendChatMessage(
         {
           message: question,
-          retrievalMode: settings.retrievalMode,
-          webMode: settings.webMode,
-          harnessMode: settings.harnessMode ?? "tensortalk",
-          thinkingMode: settings.thinkingMode ?? "limited",
+          retrievalMode: requestSettings.retrievalMode,
+          webMode: requestSettings.webMode,
+          webTrustMode: requestSettings.webTrustMode,
+          harnessMode: requestSettings.harnessMode ?? "tensortalk",
+          thinkingMode: requestSettings.thinkingMode ?? "limited",
           history: buildHistoryForRequest(activeThread, retryTurnId),
         },
         (partial) => {
@@ -1167,6 +1176,9 @@ export function TensorTalkClient() {
                             {getWebLabel(turn.settings.webMode)}
                           </Badge>
                           <Badge variant="outline">
+                            {getWebTrustLabel(turn.settings.webTrustMode)}
+                          </Badge>
+                          <Badge variant="outline">
                             {getHarnessLabel(turn.settings.harnessMode)}
                           </Badge>
                           {turn.grounding ? (
@@ -1390,10 +1402,12 @@ export function TensorTalkClient() {
                               </Select>
                               <RouteSettingsCombobox
                                 webMode={webMode}
+                                webTrustMode={webTrustMode}
                                 harnessMode={harnessMode}
                                 thinkingMode={thinkingMode}
                                 disabled={false}
                                 onWebModeChange={setWebMode}
+                                onWebTrustModeChange={setWebTrustMode}
                                 onHarnessModeChange={setHarnessMode}
                                 onThinkingModeChange={setThinkingMode}
                               />
@@ -1634,18 +1648,22 @@ function AnswerMarkdown({ content }: { content: string }) {
 
 function RouteSettingsCombobox({
   webMode,
+  webTrustMode,
   harnessMode,
   thinkingMode,
   disabled,
   onWebModeChange,
+  onWebTrustModeChange,
   onHarnessModeChange,
   onThinkingModeChange,
 }: {
   webMode: WebMode;
+  webTrustMode: WebTrustMode;
   harnessMode: HarnessMode;
   thinkingMode: ThinkingMode;
   disabled: boolean;
   onWebModeChange: (mode: WebMode) => void;
+  onWebTrustModeChange: (mode: WebTrustMode) => void;
   onHarnessModeChange: (mode: HarnessMode) => void;
   onThinkingModeChange: (mode: ThinkingMode) => void;
 }) {
@@ -1664,7 +1682,7 @@ function RouteSettingsCombobox({
         }
       >
         <span className="truncate">
-          Route: {getWebLabel(webMode)}, {getHarnessShortLabel(harnessMode)}
+          Route: {getWebLabel(webMode)}, {getWebTrustShortLabel(webTrustMode)}
         </span>
         <ChevronDownIcon data-icon="inline-end" />
       </PopoverTrigger>
@@ -1686,6 +1704,17 @@ function RouteSettingsCombobox({
             ]}
             value={webMode}
             onChange={(value) => onWebModeChange(value as WebMode)}
+          />
+          <Separator className="my-1" />
+          <RouteOptionGroup
+            title="Trust"
+            icon={<Globe2Icon className="size-4" />}
+            options={[
+              { label: "Broad UM", value: "broad" },
+              { label: "Strict list", value: "strict" },
+            ]}
+            value={webTrustMode}
+            onChange={(value) => onWebTrustModeChange(value as WebTrustMode)}
           />
           <Separator className="my-1" />
           <RouteOptionGroup
@@ -2187,6 +2216,9 @@ function TraceSummary({ trace }: { trace: ChatTrace }) {
         </Badge>
         <Badge variant="outline">{getWebLabel(trace.route.webMode)}</Badge>
         <Badge variant="outline">
+          {getWebTrustLabel(trace.route.webTrustMode)}
+        </Badge>
+        <Badge variant="outline">
           {getHarnessLabel(trace.route.harnessMode)}
         </Badge>
         <Badge variant="outline">
@@ -2311,12 +2343,14 @@ function createDraftTurn(
   settings: {
     retrievalMode: RetrievalMode;
     webMode: WebMode;
+    webTrustMode?: WebTrustMode;
     harnessMode?: HarnessMode;
     thinkingMode?: ThinkingMode;
   },
 ): StoredTurn {
   const normalizedSettings = {
     ...settings,
+    webTrustMode: settings.webTrustMode ?? "broad",
     harnessMode: settings.harnessMode ?? "tensortalk",
     thinkingMode: settings.thinkingMode ?? "limited",
   };
@@ -2329,6 +2363,7 @@ function createDraftTurn(
     mode: "streaming",
     retrievalMode: normalizedSettings.retrievalMode,
     webMode: normalizedSettings.webMode,
+    webTrustMode: normalizedSettings.webTrustMode,
     harnessMode: normalizedSettings.harnessMode,
     thinkingMode: normalizedSettings.thinkingMode,
     settings: normalizedSettings,
@@ -2463,14 +2498,18 @@ function getWebLabel(mode?: WebMode) {
   return "Web Auto";
 }
 
+function getWebTrustLabel(mode?: WebTrustMode) {
+  return mode === "strict" ? "Strict source trust" : "Broad UM source trust";
+}
+
+function getWebTrustShortLabel(mode?: WebTrustMode) {
+  return mode === "strict" ? "Strict trust" : "Broad UM";
+}
+
 function getHarnessLabel(mode?: HarnessMode) {
   return mode === "openrouter"
     ? "OpenRouter Qwen harness"
     : "TensorTalk harness";
-}
-
-function getHarnessShortLabel(mode?: HarnessMode) {
-  return mode === "openrouter" ? "OR Qwen" : "TensorTalk";
 }
 
 function getThinkingLabel(mode?: ThinkingMode) {
